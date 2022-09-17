@@ -24,7 +24,7 @@ var startGetMaxProcessedNonceCmd = &cobra.Command{
 var startGetCrossChainFeeFromRegistrarCmd = &cobra.Command{
 	Use: "GetCrossChainFeeFromRegistrar",
 	Run: func(cmd *cobra.Command, args []string) {
-		tools.GetMaxProcessedNonceFromRegistrar()
+		tools.GetCrossChainFeeFromRegistrar()
 	},
 }
 
