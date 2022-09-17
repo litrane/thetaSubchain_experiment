@@ -67,11 +67,11 @@ func init() {
 	rootCmd.AddCommand(startMainchainTNT20BurnCmd)
 	rootCmd.AddCommand(starTNT20QueryCmd)
 
-	startMainchainTNT20LockCmd.PersistentFlags().StringVar(&amount, "amount", "10", "amount")
-	startSubchainTNT20LockCmd.PersistentFlags().StringVar(&amount, "amount", "10", "amount")
-	startSubchainTNT20BurnCmd.PersistentFlags().StringVar(&amount, "amount", "10", "amount")
-	startMainchainTNT20BurnCmd.PersistentFlags().StringVar(&amount, "amount", "10", "amount")
-	starTNT20QueryCmd.PersistentFlags().StringVar(&contractAddress, "contractAddress", "", "contractAddress")
-	starTNT20QueryCmd.PersistentFlags().StringVar(&accountAddress, "accountAddress", "", "accountAddress")
-	starTNT20QueryCmd.PersistentFlags().Int64Var(&chainID, "chainID", 366, "chainID")
+	// startMainchainTNT20LockCmd.PersistentFlags().StringVar(&amount, "amount", "10", "amount")
+	// startSubchainTNT20LockCmd.PersistentFlags().StringVar(&amount, "amount", "10", "amount")
+	// startSubchainTNT20BurnCmd.PersistentFlags().StringVar(&amount, "amount", "10", "amount")
+	// startMainchainTNT20BurnCmd.PersistentFlags().StringVar(&amount, "amount", "10", "amount")
+	// starTNT20QueryCmd.PersistentFlags().StringVar(&contractAddress, "contractAddress", "", "contractAddress")
+	// starTNT20QueryCmd.PersistentFlags().StringVar(&accountAddress, "accountAddress", "", "accountAddress")
+	// starTNT20QueryCmd.PersistentFlags().Int64Var(&chainID, "chainID", 366, "chainID")
 }

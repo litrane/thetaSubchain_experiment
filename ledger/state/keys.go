@@ -20,6 +20,14 @@ func AccountKey(addr common.Address) common.Bytes {
 	return append(common.Bytes("ls/a/"), addr[:]...)
 }
 
+// AccountKey constructs the state key for the given address
+func AccountKeyForChain(addr common.Address, subchainID *big.Int) common.Bytes {
+	key := common.Bytes("ls/a/")
+	key = append(key, addr[:]...)
+	key = append(key, common.Bytes(subchainID.String())...)
+	return key
+}
+
 // SplitRuleKeyPrefix returns the prefix for the split rule key
 func SplitRuleKeyPrefix() common.Bytes {
 	return common.Bytes("ls/ssc/split/") // special smart contract / split rule
@@ -39,6 +47,13 @@ func CodeKey(codeHash common.Bytes) common.Bytes {
 // CurrentValidatorSetKey returns the state key for the current validator stake holder set
 func CurrentValidatorSetKey() common.Bytes {
 	return common.Bytes("ls/vs")
+}
+
+// ValidatorSetKeyForChain returns the state key for the validator stake holder set for specific chainID
+func ValidatorSetKeyForChain(subchainID *big.Int) common.Bytes {
+	key := common.Bytes("ls/vs")
+	key = append(key, common.Bytes(subchainID.String())...)
+	return key
 }
 
 // ValidatorSetForChainDuringDynastyKey returns the key for the validator set for a chain during the given dynasty

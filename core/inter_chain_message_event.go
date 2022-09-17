@@ -39,6 +39,8 @@ const (
 	IMCEventTypeCrossChainVoucherBurnTFuel  InterChainMessageEventType = 40001
 	IMCEventTypeCrossChainVoucherBurnTNT20  InterChainMessageEventType = 40002
 	IMCEventTypeCrossChainVoucherBurnTNT721 InterChainMessageEventType = 40003
+
+	IMCEInterSubchainChannelRegistered InterChainMessageEventType = 99999
 )
 
 // InterChainMessageEvent represents an inter-chain messaging event.
@@ -642,6 +644,28 @@ func ParseToCrossChainTNT721TokenUnlockedEvent(icme *InterChainMessageEvent) (*C
 	if icme.TargetChainID.Cmp(originatedChainID) != 0 {
 		return nil, fmt.Errorf("target chain ID mismatch for TNT721 unlock: %v vs %v", icme.TargetChainID, originatedChainID)
 	}
+	return &event, nil
+}
+
+type SubchainChannelRegisteredEvent struct {
+	Register common.Address
+	ChainID  *big.Int
+	IP       string
+	Nonce    *big.Int
+}
+
+func ParseToSubchainChannelRegisteredEvent(icme *InterChainMessageEvent) (*SubchainChannelRegisteredEvent, error) {
+	if icme.Type != IMCEventTypeCrossChainTokenUnlockTNT721 {
+		return nil, fmt.Errorf("invalid inter-chain message event type: %v", icme.Type)
+	}
+
+	var event SubchainChannelRegisteredEvent
+	contractAbi, err := abi.JSON(strings.NewReader(string(scta.ChainRegistrarOnSubchainABI)))
+	if err != nil {
+		return nil, err
+	}
+	contractAbi.UnpackIntoInterface(&event, "ChannelRegistered", icme.Data)
+
 	return &event, nil
 }
 

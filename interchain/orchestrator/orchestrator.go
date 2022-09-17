@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"sync"
 	"time"
@@ -24,6 +25,10 @@ import (
 )
 
 var logger *log.Entry = log.WithFields(log.Fields{"prefix": "orchestrator"})
+
+var (
+	ErrDynastyIsNil = errors.New("Nil dynasty")
+)
 
 type Orchestrator struct {
 	updateInterval        int
@@ -54,9 +59,13 @@ type Orchestrator struct {
 	subchainTNT20TokenBank        *scta.TNT20TokenBank
 	subchainTNT721TokenBankAddr   common.Address
 	subchainTNT721TokenBank       *scta.TNT721TokenBank
+	subchainRegisterAddr          common.Address
+	subchainRegister              *scta.ChainRegistrarOnSubchain
 	// Inter-chain messaging
 	interChainEventCache *siu.InterChainEventCache
 
+	// Inter-subchain clients
+	interSubchainChannels map[string]*ec.Client
 	// Life cycle
 	wg     *sync.WaitGroup
 	ctx    context.Context
@@ -168,7 +177,7 @@ func (oc *Orchestrator) SetLedgerAndSubchainTokenBanks(ledger score.Ledger) {
 	oc.subchainTNT20TokenBankAddr = *subchainTNT20TokenBankAddr
 	oc.subchainTNT20TokenBank, err = scta.NewTNT20TokenBank(*subchainTNT20TokenBankAddr, oc.subchainEthRpcClient)
 	if err != nil {
-		logger.Fatalf("failed to set the SubchainTNT20TokenBankAddr contract: %v\n", err)
+		logger.Fatalf("failed to set the SubchainTNT20TokenBank contract: %v\n", err)
 	}
 
 	subchainTNT721TokenBankAddr := ledger.GetTokenBankContractAddress(score.CrossChainTokenTypeTNT721)
@@ -178,7 +187,17 @@ func (oc *Orchestrator) SetLedgerAndSubchainTokenBanks(ledger score.Ledger) {
 	oc.subchainTNT721TokenBankAddr = *subchainTNT721TokenBankAddr
 	oc.subchainTNT721TokenBank, err = scta.NewTNT721TokenBank(*subchainTNT721TokenBankAddr, oc.subchainEthRpcClient)
 	if err != nil {
-		logger.Fatalf("failed to set the SubchainTNT721TokenBankAddr contract: %v\n", err)
+		logger.Fatalf("failed to set the SubchainTNT721TokenBank contract: %v\n", err)
+	}
+
+	subchainRegisterAddr := ledger.GetSubchainRegisterContractAddress()
+	if subchainRegisterAddr == nil {
+		logger.Fatalf("failed to obtain SubchainRegister contract address\n")
+	}
+	oc.subchainRegisterAddr = *subchainRegisterAddr
+	oc.subchainRegister, err = scta.NewChainRegistrarOnSubchain(*subchainRegisterAddr, oc.subchainEthRpcClient)
+	if err != nil {
+		logger.Fatalf("failed to set the subchainRegister contract: %v\n", err)
 	}
 }
 
@@ -196,6 +215,9 @@ func (oc *Orchestrator) mainloop(ctx context.Context) {
 			// Handle voucher burn events
 			oc.processNextVoucherBurnEvent(oc.mainchainID, oc.subchainID) // burn voucher to send token from the mainchain back to the subchain
 			oc.processNextVoucherBurnEvent(oc.subchainID, oc.mainchainID) // burn voucher to send token from the subchain back to the mainchain
+
+			// Handle subchain channel events
+			oc.processNextSubchainRegisterEvent()
 		}
 	}
 }
@@ -276,6 +298,17 @@ func (oc *Orchestrator) processNextTNT721VoucherBurnEvent(sourceChainID *big.Int
 	oc.processNextEvent(sourceChainID, targetChainID, score.IMCEventTypeCrossChainVoucherBurnTNT721, maxProcessedVoucherBurnNonce)
 }
 
+func (oc *Orchestrator) processNextSubchainRegisterEvent() {
+	subchainRegister := oc.subchainRegister
+	maxProcessedSubchainRegisteredNonce, err := subchainRegister.GetMaxProcessedNonce(nil)
+	if err != nil {
+		logger.Warnf("Failed to query the max processed subchain channel register nonce ")
+		return // ignore
+	}
+
+	oc.processNextEvent(oc.subchainID, common.Big0, score.IMCEInterSubchainChannelRegistered, maxProcessedSubchainRegisteredNonce)
+}
+
 func (oc *Orchestrator) processNextEvent(sourceChainID *big.Int, targetChainID *big.Int, sourceChainEventType score.InterChainMessageEventType, maxProcessedNonce *big.Int) {
 	oc.cleanUpInterChainEventCache(sourceChainID, sourceChainEventType, maxProcessedNonce)
 
@@ -291,13 +324,43 @@ func (oc *Orchestrator) processNextEvent(sourceChainID *big.Int, targetChainID *
 	targetEventType := oc.getTargetChainCorrespondingEventType(sourceChainEventType)
 	retryThreshold := oc.getRetryThreshold(targetChainID)
 	if oc.timeElapsedSinceEventProcessed(sourceEvent) > retryThreshold { // retry if the tx has been submitted for a long time
-		err := oc.callTargetContract(targetChainID, targetEventType, sourceEvent)
+		var err error
+		if sourceChainEventType == score.IMCEInterSubchainChannelRegistered {
+			err = oc.verifyChannelValidity(sourceEvent)
+		} else {
+			err = oc.callTargetContract(targetChainID, targetEventType, sourceEvent)
+		}
+
 		if err == nil {
 			oc.updateEventProcessedTime(sourceEvent)
 		} else {
 			logger.Warnf("Failed to call target contract: %v", err)
 		}
 	}
+
+}
+
+func (oc *Orchestrator) verifyChannelValidity(event *score.InterChainMessageEvent) error {
+	se, err := score.ParseToSubchainChannelRegisteredEvent(event)
+	if err != nil {
+		return err
+	}
+	mainchainEthRpcURL := viper.GetString(scom.CfgMainchainEthRpcURL)
+	newSubchainChannel, err := ec.Dial(mainchainEthRpcURL)
+	if err != nil {
+		logger.Fatalf("the ETH client failed to connect to the mainchain ETH RPC %v\n", err)
+		return err
+	}
+	channelValidity := siu.QuerySubchainID(se.ChainID, se.IP)
+	txOpts, err := oc.buildTxOpts(oc.subchainID, oc.subchainEthRpcClient)
+	if err != nil {
+		return err
+	}
+	if channelValidity {
+		oc.interSubchainChannels[event.TargetChainID.String()] = newSubchainChannel
+	}
+	err = oc.callVerifySubchainChannelValidity(txOpts, se.ChainID, channelValidity, se.Nonce)
+	return err
 }
 
 func (oc *Orchestrator) cleanUpInterChainEventCache(sourceChainID *big.Int, eventType score.InterChainMessageEventType, maxProcessedNonce *big.Int) {
@@ -372,6 +435,19 @@ func (oc *Orchestrator) callTargetContract(targetChainID *big.Int, targetEventTy
 	return nil
 }
 
+func (oc *Orchestrator) callVerifySubchainChannelValidity(txOpts *bind.TransactOpts, targetChainID *big.Int, channelValidity bool, eventNonce *big.Int) error {
+	dynasty := oc.getDynasty()
+	if dynasty == nil {
+		return ErrDynastyIsNil
+	}
+	_, err := oc.subchainRegister.UpdateSubchainChannelStatus(txOpts, oc.subchainID, targetChainID, dynasty, channelValidity, eventNonce)
+	if err != nil {
+		logger.Warnf("Failed to call the target contract: ", err)
+		return err
+	}
+	return nil
+}
+
 func (oc *Orchestrator) mintTFuelVouchers(txOpts *bind.TransactOpts, targetChainID *big.Int, sourceEvent *score.InterChainMessageEvent) error {
 	se, err := score.ParseToCrossChainTFuelTokenLockedEvent(sourceEvent)
 	if err != nil {
@@ -380,7 +456,7 @@ func (oc *Orchestrator) mintTFuelVouchers(txOpts *bind.TransactOpts, targetChain
 
 	dynasty := oc.getDynasty()
 	if dynasty == nil {
-		return nil
+		return ErrDynastyIsNil
 	}
 	tfuelTokenBank := oc.getTFuelTokenBank(targetChainID)
 	_, err = tfuelTokenBank.MintVouchers(txOpts, se.Denom, se.TargetChainVoucherReceiver, se.LockedAmount, dynasty, se.TokenLockNonce)
@@ -397,7 +473,7 @@ func (oc *Orchestrator) mintTNT20Vouchers(txOpts *bind.TransactOpts, targetChain
 	}
 	dynasty := oc.getDynasty()
 	if dynasty == nil {
-		return nil
+		return ErrDynastyIsNil
 	}
 	TNT20TokenBank := oc.getTNT20TokenBank(targetChainID)
 	_, err = TNT20TokenBank.MintVouchers(txOpts, se.Denom, se.Name, se.Symbol, se.Decimals, se.TargetChainVoucherReceiver, se.LockedAmount, dynasty, se.TokenLockNonce)
@@ -414,7 +490,7 @@ func (oc *Orchestrator) mintTN721Vouchers(txOpts *bind.TransactOpts, targetChain
 	}
 	dynasty := oc.getDynasty()
 	if dynasty == nil {
-		return nil
+		return ErrDynastyIsNil
 	}
 	TNT721TokenBank := oc.getTNT721TokenBank(targetChainID)
 	_, err = TNT721TokenBank.MintVouchers(txOpts, se.Denom, se.Name, se.Symbol, se.TargetChainVoucherReceiver, se.TokenID, se.TokenURI, dynasty, se.TokenLockNonce)
@@ -431,7 +507,7 @@ func (oc *Orchestrator) unlockTFuelTokens(txOpts *bind.TransactOpts, targetChain
 	}
 	dynasty := oc.getDynasty()
 	if dynasty == nil {
-		return nil
+		return ErrDynastyIsNil
 	}
 	tfuelTokenBank := oc.getTFuelTokenBank(targetChainID)
 	_, err = tfuelTokenBank.UnlockTokens(txOpts, sourceEvent.SourceChainID, se.TargetChainTokenReceiver, se.BurnedAmount, dynasty, se.VoucherBurnNonce)
@@ -448,7 +524,7 @@ func (oc *Orchestrator) unlockTNT20Tokens(txOpts *bind.TransactOpts, targetChain
 	}
 	dynasty := oc.getDynasty()
 	if dynasty == nil {
-		return nil
+		return ErrDynastyIsNil
 	}
 	TNT20TokenBank := oc.getTNT20TokenBank(targetChainID)
 	_, err = TNT20TokenBank.UnlockTokens(txOpts, sourceEvent.SourceChainID, se.Denom, se.TargetChainTokenReceiver, se.BurnedAmount, dynasty, se.VoucherBurnNonce)
@@ -465,7 +541,7 @@ func (oc *Orchestrator) unlockTNT721Tokens(txOpts *bind.TransactOpts, targetChai
 	}
 	dynasty := oc.getDynasty()
 	if dynasty == nil {
-		return nil
+		return ErrDynastyIsNil
 	}
 	TNT721TokenBank := oc.getTNT721TokenBank(targetChainID)
 	_, err = TNT721TokenBank.UnlockTokens(txOpts, sourceEvent.SourceChainID, se.Denom, se.TargetChainTokenReceiver, se.TokenID, dynasty, se.VoucherBurnNonce)

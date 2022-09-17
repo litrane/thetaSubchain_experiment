@@ -172,6 +172,21 @@ func (sv *StoreView) GetAccount(addr common.Address) *types.Account {
 	return acc
 }
 
+// GetAccount returns an account for specific chain.
+func (sv *StoreView) GetAccountForChain(addr common.Address, subchainID *big.Int) *types.Account {
+	data := sv.Get(AccountKeyForChain(addr, subchainID))
+	if data == nil || len(data) == 0 {
+		return nil
+	}
+	acc := &types.Account{}
+	err := types.FromBytes(data, acc)
+	if err != nil {
+		log.Panicf("Error reading account %X error: %v",
+			data, err.Error())
+	}
+	return acc
+}
+
 // // SetAccount sets an account.
 // func (sv *StoreView) SetAccount(addr common.Address, acc *types.Account) {
 // 	accBytes, err := types.ToBytes(acc)
@@ -185,6 +200,19 @@ func (sv *StoreView) GetAccount(addr common.Address) *types.Account {
 // SetAccount sets an account.
 func (sv *StoreView) SetAccount(addr common.Address, acc *types.Account) {
 	sv.setAccount(addr, acc, true)
+}
+
+// SetAccount sets an account for a specific chain.
+func (sv *StoreView) SetAccountForChain(addr common.Address, acc *types.Account, subchainID *big.Int) {
+	// TODO: I think maybe updateRefCountForAccountStateTree is false, maybe we can add an if
+	// to see whether it is the local chainID. If so, the updateRefCountForAccountStateTree is true
+	// else false
+	accBytes, err := types.ToBytes(acc)
+	if err != nil {
+		log.Panicf("Error writing account %v error: %v",
+			acc, err.Error())
+	}
+	sv.Set(AccountKeyForChain(addr, subchainID), accBytes)
 }
 
 func (sv *StoreView) setAccountWithoutStateTreeRefCountUpdate(addr common.Address, acc *types.Account) {
@@ -235,6 +263,22 @@ func (sv *StoreView) GetDynasty() *big.Int {
 	return dynasty
 }
 
+// GetDynasty gets the dynasty associated with the view
+func (sv *StoreView) GetDynastyForChain(subchainID *big.Int) *big.Int {
+	data := sv.Get(ValidatorSetKeyForChain(subchainID))
+	if data == nil || len(data) == 0 {
+		return nil
+	}
+	vs := &score.ValidatorSet{}
+	err := types.FromBytes(data, vs)
+	if err != nil {
+		log.Panicf("Error reading validator set %X, error: %v",
+			data, err.Error())
+	}
+	dynasty := vs.Dynasty() // retrieve the dynasty from the validator set
+	return dynasty
+}
+
 // GetValidatorSet gets the validator set.
 func (sv *StoreView) GetValidatorSet() *score.ValidatorSet {
 	data := sv.Get(CurrentValidatorSetKey())
@@ -261,6 +305,34 @@ func (sv *StoreView) UpdateValidatorSet(chainID *big.Int, vs *score.ValidatorSet
 	}
 	sv.Set(CurrentValidatorSetKey(), vsBytes)
 	sv.Set(ValidatorSetForChainDuringDynastyKey(chainID, vs.Dynasty()), vsBytes)
+}
+
+// GetValidatorSetForChain gets the validator set for specific chainID.
+func (sv *StoreView) GetValidatorSetForchain(subchainID *big.Int) *score.ValidatorSet {
+	data := sv.Get(ValidatorSetKeyForChain(subchainID))
+	if data == nil || len(data) == 0 {
+		return nil
+	}
+	vs := &score.ValidatorSet{}
+	err := types.FromBytes(data, vs)
+	if err != nil {
+		log.Panicf("Error reading validator set %X, error: %v",
+			data, err.Error())
+	}
+	return vs
+}
+
+// UpdateValidatorSet updates the validator set for specific chainID.
+func (sv *StoreView) UpdateValidatorSetForChain(subchainID *big.Int, vs *score.ValidatorSet) {
+	logger.Debugf("Update validator set, chainID: %v, valset: %v", subchainID, vs)
+
+	vsBytes, err := types.ToBytes(vs)
+	if err != nil {
+		log.Panicf("Error writing validator set %v, error: %v",
+			vs, err.Error())
+	}
+	sv.Set(ValidatorSetKeyForChain(subchainID), vsBytes)
+	sv.Set(ValidatorSetForChainDuringDynastyKey(subchainID, vs.Dynasty()), vsBytes)
 }
 
 func (sv *StoreView) GetValidatorSetForChainDuringDynasty(chainID *big.Int, dynasty *big.Int) *score.ValidatorSet {

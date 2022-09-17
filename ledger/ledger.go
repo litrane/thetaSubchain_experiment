@@ -186,6 +186,24 @@ func (ledger *Ledger) GetTokenBankContractAddress(tokenType score.CrossChainToke
 	}
 }
 
+func (ledger *Ledger) GetSubchainRegisterContractAddress() *common.Address {
+	// storeView := ledger.state.Finalized()
+	db := ledger.state.DB()
+	store := kvstore.NewKVStore(db)
+	blockHash := ledger.chain.Root().Hash()
+	block, err := findBlock(store, blockHash)
+	if err != nil {
+		logger.Fatalf("Failed to find block for last processed nonce: %v, err: %v", blockHash.Hex(), err) // should not happen
+	}
+	if block == nil {
+		logger.Fatalf("block is nil for hash %v", blockHash.Hex()) // should not happend
+	}
+
+	stateRoot := block.BlockHeader.StateHash
+	storeView := slst.NewStoreView(block.Height, stateRoot, db)
+	return storeView.GetChainRegistrarContractAddress()
+}
+
 func findBlock(store store.Store, blockHash common.Hash) (*score.ExtendedBlock, error) {
 	var block score.ExtendedBlock
 	err := store.Get(blockHash[:], &block)
@@ -633,7 +651,18 @@ func (ledger *Ledger) addSpecialTransactions(block *score.Block, view *slst.Stor
 	// ------- Add coinbase transaction ------- //
 	ledger.addCoinbaseTx(view, &proposer, currentValidatorSet, rawTxs)
 
-	// ------- Add subchain validator set update transaction ------- //
+	// ------- Add subchain validator set update transaction for each subchain in the watchlist(tentative)
+	for _, subchainID := range ledger.metachainWitness.GetInterSubchainChannelWatchList() {
+		subchainID := subchainID
+		enteringNewDynasty, newDynasty, newValidatorSet := ledger.getNewDynastyAndValidatorSetForChain(view, subchainID)
+		if enteringNewDynasty && validatorMajorityInTheSameDynasty {
+			ledger.addSubchainValidatorSetUpdateTxForChain(view, &proposer, newDynasty, newValidatorSet, subchainID, rawTxs)
+		}
+		logger.Debugf("Checking whether to add subchain validator update transactions: subchainID: %v, validatorMajorityInTheSameDynasty: %v, enteringNewDynasty: %v, newDynasty: %v, newValidatorSet: %v",
+			subchainID, validatorMajorityInTheSameDynasty, enteringNewDynasty, newDynasty, newValidatorSet)
+	}
+
+	// // ------- Add subchain validator set update transaction ------- //
 
 	// Here we add the subchain validator set update tx regardless whether the validator set has changed, since
 	// the token bank contracts need to query the validator set of each dynasty
@@ -684,6 +713,43 @@ func (ledger *Ledger) getNewDynastyAndValidatorSet(view *slst.StoreView) (enteri
 	//logger.Debugf("currentValidatorSet  : %v", currentValidatorSet)
 	logger.Debugf("validatorSetInView   : %v", validatorSetInView)
 	logger.Debugf("currentDynasty       : %v", currentDynasty)
+	logger.Debugf("witnessedDynasty     : %v", witnessedDynasty)
+
+	return true, witnessedDynasty, witnessedValidatorSet
+}
+
+func (ledger *Ledger) getNewDynastyAndValidatorSetForChain(view *slst.StoreView, subchainID *big.Int) (enteringNewDynasty bool, newDynasty *big.Int, newValidatorSet *score.ValidatorSet) {
+	// Note that here we get the "current" dynasty from the view, even though the block containing the
+	// validator set update is NOT finalized yet (typically needs two blocks). Otherwise, if we instead
+	// retrieve the dynasty from the "finalized" validator set, the code could issue validator set update
+	// txs for two consecutive blocks, where the second tx will be rejected.
+	currentDynastyForChain := view.GetDynastyForChain(subchainID)
+	mainchainBlockHeight, err := ledger.metachainWitness.GetMainchainBlockHeight()
+	if err != nil {
+		logger.Warn("Failed to get mainchain block number when checking validator set updates, err: %v", err)
+		return false, nil, nil
+	}
+
+	witnessedDynasty := scom.CalculateDynasty(mainchainBlockHeight)
+	witnessedValidatorSet, err := ledger.metachainWitness.GetValidatorSetByDynastyForChain(witnessedDynasty, subchainID)
+	if err != nil {
+		logger.Warnf("Failed to get validator set by dynasty %v when checking validator set updates, err: %v", witnessedDynasty, err)
+		return false, nil, nil
+	}
+
+	if witnessedDynasty.Cmp(currentDynastyForChain) <= 0 {
+		return false, nil, nil
+	}
+
+	// at this point: witnessedDynasty >= currentDynastyForChain + 1, we are entering a new dynasty
+
+	validatorSetInView := view.GetValidatorSetForchain(subchainID)
+
+	logger.Debugf("block height: %v", view.GetBlockHeight())
+	logger.Debugf("witnessedValidatorSet: %v", witnessedValidatorSet)
+	//logger.Debugf("currentValidatorSet  : %v", currentValidatorSet)
+	logger.Debugf("validatorSetInView   : %v", validatorSetInView)
+	logger.Debugf("currentDynastyForChain       : %v", currentDynastyForChain)
 	logger.Debugf("witnessedDynasty     : %v", witnessedDynasty)
 
 	return true, witnessedDynasty, witnessedValidatorSet
@@ -798,6 +864,45 @@ func (ledger *Ledger) addSubchainValidatorSetUpdateTx(view *slst.StoreView, prop
 	*rawTxs = append(*rawTxs, subchainValidatorSetUpdateTxBytes)
 	logger.Infof("Added subchain validator set update transction: tx: %v", subchainValidatorSetUpdateTx)
 	logger.Debugf("Subchain validator set update transction bytes: %v", hex.EncodeToString(subchainValidatorSetUpdateTxBytes))
+}
+
+// addSubchainValidatorSetUpdateTx adds a validator update transaction
+func (ledger *Ledger) addSubchainValidatorSetUpdateTxForChain(view *slst.StoreView, proposer *score.Validator,
+	newDynasty *big.Int, newValidatorSet *score.ValidatorSet, subchainID *big.Int, rawTxs *[]common.Bytes) {
+	proposerAccount := view.GetAccount(proposer.Address)
+	if proposerAccount == nil {
+		// should not happen, since the the validator set update tx shouuld create the propser account if it does not exist
+		logger.Fatalf("Failed to get proposer account: %v", proposer.Address)
+	}
+
+	proposerAddress := proposer.Address
+	proposerTxIn := types.TxInput{
+		Address:  proposerAddress,
+		Sequence: proposerAccount.Sequence + 1,
+	}
+
+	subchainValidatorSetUpdateForChainTx := &stypes.SubchainValidatorSetUpdateForChainTx{
+		Proposer:   proposerTxIn,
+		Dynasty:    newDynasty,
+		SubchainID: subchainID,
+		Validators: newValidatorSet.Validators(),
+	}
+
+	signature, err := ledger.signTransaction(subchainValidatorSetUpdateForChainTx)
+	if err != nil {
+		logger.Fatalf("Failed to add subchain validator set update transaction: %v", err) // do not expect this to happen
+		return
+	}
+	subchainValidatorSetUpdateForChainTx.SetSignature(proposerAddress, signature)
+	subchainValidatorSetUpdateForChainTxBytes, err := stypes.TxToBytes(subchainValidatorSetUpdateForChainTx)
+	if err != nil {
+		logger.Fatalf("Failed to serialize subchain validator set update transaction: %v", err) // do not expect this to happen
+		return
+	}
+
+	*rawTxs = append(*rawTxs, subchainValidatorSetUpdateForChainTxBytes)
+	logger.Infof("Added subchain validator set update transction: tx: %v", subchainValidatorSetUpdateForChainTx)
+	logger.Debugf("Subchain validator set update transction bytes: %v", hex.EncodeToString(subchainValidatorSetUpdateForChainTxBytes))
 }
 
 // signTransaction signs the given transaction

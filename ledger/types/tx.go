@@ -19,7 +19,8 @@ import (
 const maxTxSize = 8 * 1024 * 1024
 
 const (
-	TxSubchainValidatorSetUpdate types.TxType = 201
+	TxSubchainValidatorSetUpdate         types.TxType = 201
+	TxSubchainValidatorSetUpdateForChain types.TxType = 202
 )
 
 //---------------------------------SubchainValidatorSetUpdateTx--------------------------------------------
@@ -91,6 +92,79 @@ func (tx *SubchainValidatorSetUpdateTx) String() string {
 	return fmt.Sprintf("SubchainValidatorSetUpdateTx{%v}", tx.Validators)
 }
 
+//---------------------------------SubchainValidatorSetUpdateForChainTx--------------------------------------------
+
+type SubchainValidatorSetUpdateForChainTx struct {
+	Proposer   types.TxInput
+	Dynasty    *big.Int
+	SubchainID *big.Int
+	Validators []score.Validator
+}
+
+type SubchainValidatorSetUpdateForChainTxJSON struct {
+	Proposer   types.TxInput     `json:"proposer"`
+	Dynasty    *big.Int          `json:"dynasty"`
+	SubchainID *big.Int          `json:subchainID`
+	Validators []score.Validator `json:"validators"`
+}
+
+func NewValidatorSetUpdateForChainTxJSON(a SubchainValidatorSetUpdateForChainTx) SubchainValidatorSetUpdateForChainTxJSON {
+	return SubchainValidatorSetUpdateForChainTxJSON{
+		Proposer:   a.Proposer,
+		Dynasty:    a.Dynasty,
+		SubchainID: a.SubchainID,
+		Validators: a.Validators,
+	}
+}
+
+func (a SubchainValidatorSetUpdateForChainTxJSON) ValidatorSetUpdateForChainTx() SubchainValidatorSetUpdateForChainTx {
+	return SubchainValidatorSetUpdateForChainTx{
+		Proposer:   a.Proposer,
+		Dynasty:    a.Dynasty,
+		SubchainID: a.SubchainID,
+		Validators: a.Validators,
+	}
+}
+
+func (a SubchainValidatorSetUpdateForChainTxJSON) MarshalJSON() ([]byte, error) {
+	return json.Marshal(SubchainValidatorSetUpdateForChainTxJSON(a))
+}
+
+func (a *SubchainValidatorSetUpdateForChainTx) UnmarshalJSON(data []byte) error {
+	var b SubchainValidatorSetUpdateForChainTxJSON
+	if err := json.Unmarshal(data, &b); err != nil {
+		return err
+	}
+	*a = b.ValidatorSetUpdateForChainTx()
+	return nil
+}
+
+func (_ *SubchainValidatorSetUpdateForChainTx) AssertIsTx() {}
+
+func (tx *SubchainValidatorSetUpdateForChainTx) SignBytes(chainID string) []byte {
+	signBytes := encodeToBytes(chainID)
+	sig := tx.Proposer.Signature
+	tx.Proposer.Signature = nil
+	txBytes, _ := TxToBytes(tx)
+	signBytes = append(signBytes, txBytes...)
+	signBytes = addPrefixForSignBytes(signBytes)
+
+	tx.Proposer.Signature = sig
+	return signBytes
+}
+
+func (tx *SubchainValidatorSetUpdateForChainTx) SetSignature(addr common.Address, sig *crypto.Signature) bool {
+	if tx.Proposer.Address == addr {
+		tx.Proposer.Signature = sig
+		return true
+	}
+	return false
+}
+
+func (tx *SubchainValidatorSetUpdateForChainTx) String() string {
+	return fmt.Sprintf("SubchainValidatorSetUpdateForChainTx{%v}", tx.Validators)
+}
+
 // --------------- Utils --------------- //
 
 func encodeToBytes(str string) []byte {
@@ -140,6 +214,8 @@ func TxToBytes(t types.Tx) ([]byte, error) {
 		txType = types.TxSmartContract
 	case *SubchainValidatorSetUpdateTx:
 		txType = TxSubchainValidatorSetUpdate
+	case *SubchainValidatorSetUpdateForChainTx:
+		txType = TxSubchainValidatorSetUpdateForChain
 	default:
 		return nil, errors.New("unsupported message type")
 	}
@@ -178,7 +254,11 @@ func TxFromBytes(raw []byte) (types.Tx, error) {
 		data := &SubchainValidatorSetUpdateTx{}
 		err = s.Decode(data)
 		return data, err
+	} else if txType == TxSubchainValidatorSetUpdateForChain {
+		data := &SubchainValidatorSetUpdateForChainTx{}
+		err = s.Decode(data)
+		return data, err
 	} else {
-		return nil, fmt.Errorf("Unknown TX type: %v", txType)
+		return nil, fmt.Errorf("unknown TX type: %v", txType)
 	}
 }

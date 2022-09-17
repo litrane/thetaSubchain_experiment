@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -37,11 +38,19 @@ type RPCResult struct {
 	Result  []LogData `json:"result"`
 }
 
+type ChainIDRPCResult struct {
+	Jsonrpc string `json:"jsonrpc"`
+	Id      int64  `json:"id"`
+	Result  string `json:"result"`
+}
+
 type TransferEvent struct {
 	Denom  string
 	Amount *big.Int
 	Nonce  *big.Int
 }
+
+var ErrInvalidSubchainChannel = errors.New("Invalid subchain channel")
 
 var LockTypes = []score.InterChainMessageEventType{
 	score.IMCEventTypeCrossChainTokenLockTFuel,
@@ -81,13 +90,18 @@ var EventSelectors = map[score.InterChainMessageEventType]string{
 	score.IMCEventTypeCrossChainTokenUnlockTFuel:  crypto.Keccak256Hash([]byte("TFuelTokenUnlocked(string,address,uint256,uint256,uint256)")).Hex(),
 	score.IMCEventTypeCrossChainTokenUnlockTNT20:  crypto.Keccak256Hash([]byte("TNT20TokenUnlocked(string,address,uint256,uint256,uint256)")).Hex(),
 	score.IMCEventTypeCrossChainTokenUnlockTNT721: crypto.Keccak256Hash([]byte("TNT721TokenUnlocked(string,address,uint256,uint256,uint256)")).Hex(),
+
+	// InterSubchainChannel events
+	// score.IMCEInterSubchainChannelRegistered: crypto.Keccak256Hash([]byte("ChannelRegistered(address,uint256,string")).Hex(),
 }
 
-func QueryInterChainEventLog(queriedChainID *big.Int, fromBlock *big.Int, toBlock *big.Int, tfuelTokenBankAddress common.Address, tnt20TokenBankAddress common.Address, tnt721TokenBankAddress common.Address, queryTopics string, url string) []*score.InterChainMessageEvent {
+func QueryInterChainEventLog(queriedChainID *big.Int, fromBlock *big.Int, toBlock *big.Int, tfuelTokenBankAddress common.Address, tnt20TokenBankAddress common.Address, tnt721TokenBankAddress common.Address, subchainRegisterAddr common.Address, queryTopics string, url string) []*score.InterChainMessageEvent {
 
 	var events []*score.InterChainMessageEvent
 
+	// queryStr := fmt.Sprintf(`{"jsonrpc":"2.0","method":"eth_getLogs","params":[{"fromBlock":"%v","toBlock":"%v", "address":[%v],"topics":[[%v]]}],"id":74}`, fmt.Sprintf("%x", fromBlock), fmt.Sprintf("%x", toBlock), fmt.Sprintf("\"%v\",\"%v\",\"%v\",\"%v\"", tfuelTokenBankAddress, tnt20TokenBankAddress, tnt721TokenBankAddress, subchainRegisterAddr), queryTopics)
 	queryStr := fmt.Sprintf(`{"jsonrpc":"2.0","method":"eth_getLogs","params":[{"fromBlock":"%v","toBlock":"%v", "address":[%v],"topics":[[%v]]}],"id":74}`, fmt.Sprintf("%x", fromBlock), fmt.Sprintf("%x", toBlock), fmt.Sprintf("\"%v\",\"%v\",\"%v\"", tfuelTokenBankAddress, tnt20TokenBankAddress, tnt721TokenBankAddress), queryTopics)
+
 	var jsonData = []byte(queryStr)
 
 	request, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
@@ -155,10 +169,54 @@ func QueryInterChainEventLog(queriedChainID *big.Int, fromBlock *big.Int, toBloc
 		case EventSelectors[score.IMCEventTypeCrossChainTokenUnlockTNT721]:
 			extractTNT721TokenUnlockedEvent(queriedChainID, logData, &events)
 
+		// InterSubchainChannel events
+		case EventSelectors[score.IMCEInterSubchainChannelRegistered]:
+			extractSubchainChannelRegisteredEvent(queriedChainID, logData, &events)
 		default:
 		}
 	}
 	return events
+}
+
+func QuerySubchainID(queriedChainID *big.Int, url string) bool {
+	queryStr := `{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":67}`
+	var jsonData = []byte(queryStr)
+
+	request, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		logger.Warnf("Failed to post to %v, err: %v", url, err)
+		return false
+	}
+	request.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	response, err := client.Do(request)
+	if err != nil {
+		logger.Warnf("RPC response error %v, err: %v", url, err)
+		return false
+	}
+	defer response.Body.Close()
+
+	body, _ := ioutil.ReadAll(response.Body)
+	var rpcres ChainIDRPCResult
+
+	err = json.Unmarshal(body, &rpcres)
+	if err != nil {
+		fmt.Printf("error decoding response: %v\n", err)
+		if e, ok := err.(*json.SyntaxError); ok {
+			fmt.Printf("syntax error at byte offset %d\n", e.Offset)
+		}
+		fmt.Printf("response: %q\n", body)
+	}
+	chainID, success := new(big.Int).SetString(rpcres.Result[2:], 16)
+	if !success {
+		return false
+	}
+	if chainID.Cmp(queriedChainID) != 0 {
+		return false
+	}
+
+	return true
 }
 
 func extractTFuelTokenLockedEvent(sourceChainID *big.Int, logData LogData, events *[]*score.InterChainMessageEvent) {
@@ -422,5 +480,25 @@ func extractTNT721TokenUnlockedEvent(targetChainID *big.Int, logData LogData, ev
 		BlockHeight:   blockHeight,
 	}
 	logger.Infof("got TNT721 unlock event : %v, logdata : %v", tma, logData)
+	*events = append(*events, event)
+}
+
+func extractSubchainChannelRegisteredEvent(targetChainID *big.Int, logData LogData, events *[]*score.InterChainMessageEvent) {
+	data, _ := hex.DecodeString(logData.Data[2:])
+	var tma score.SubchainChannelRegisteredEvent
+	contractAbi, _ := abi.JSON(strings.NewReader(string(scta.ChainRegistrarOnSubchainABI)))
+	contractAbi.UnpackIntoInterface(&tma, "ChannelRegistered", data)
+	blockHeight, _ := new(big.Int).SetString(logData.BlockNumber[2:], 16)
+	event := &score.InterChainMessageEvent{
+		Type:          score.IMCEInterSubchainChannelRegistered,
+		SourceChainID: nil, // don't care
+		TargetChainID: targetChainID,
+		Sender:        common.Address{}, // don't care
+		Receiver:      common.Address{}, // don't care
+		Data:          data,
+		Nonce:         tma.Nonce,
+		BlockHeight:   blockHeight,
+	}
+	logger.Infof("got channel registered event : %v, logdata : %v", tma, logData)
 	*events = append(*events, event)
 }

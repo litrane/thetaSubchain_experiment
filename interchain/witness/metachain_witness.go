@@ -62,13 +62,16 @@ type MetachainWitness struct {
 	subchainTNT20TokenBank      *scta.TNT20TokenBank // the TNT20TokenBank contract deployed on the subchain
 	subchainTNT721TokenBankAddr common.Address
 	subchainTNT721TokenBank     *scta.TNT721TokenBank
-
+	subchainRegisterAddr        common.Address
+	subchainRegister            *scta.ChainRegistrarOnSubchain
 	// Validator set
-	cacheMutex        *sync.Mutex // mutex to for validatorSetCache concurrent write protection
-	validatorSetCache map[string]*score.ValidatorSet
+	cacheMutex              *sync.Mutex // mutex to for validatorSetCache concurrent write protection
+	validatorSetCache       map[string]*score.ValidatorSet
+	validatorSetCacheForAll map[string]map[string]*score.ValidatorSet
 
 	// Inter-chain messaging
-	interChainEventCache *siu.InterChainEventCache
+	interChainEventCache          *siu.InterChainEventCache
+	interSubchainChannelWatchList []*big.Int
 
 	// Life cycle
 	wg     *sync.WaitGroup
@@ -194,7 +197,7 @@ func (mw *MetachainWitness) SetSubchainTokenBanks(ledger score.Ledger) {
 	mw.subchainTNT20TokenBankAddr = *subchainTNT20TokenBankAddr
 	mw.subchainTNT20TokenBank, err = scta.NewTNT20TokenBank(*subchainTNT20TokenBankAddr, mw.subchainEthRpcClient)
 	if err != nil {
-		logger.Fatalf("failed to set the SubchainTNT20TokenBankAddr contract: %v\n", err)
+		logger.Fatalf("failed to set the SubchainTNT20TokenBank contract: %v\n", err)
 	}
 
 	subchainTNT721TokenBankAddr := ledger.GetTokenBankContractAddress(score.CrossChainTokenTypeTNT721)
@@ -204,7 +207,17 @@ func (mw *MetachainWitness) SetSubchainTokenBanks(ledger score.Ledger) {
 	mw.subchainTNT721TokenBankAddr = *subchainTNT721TokenBankAddr
 	mw.subchainTNT721TokenBank, err = scta.NewTNT721TokenBank(*subchainTNT721TokenBankAddr, mw.subchainEthRpcClient)
 	if err != nil {
-		logger.Fatalf("failed to set the SubchainTNT20TokenBankAddr contract: %v\n", err)
+		logger.Fatalf("failed to set the SubchainTNT20TokenBank contract: %v\n", err)
+	}
+
+	subchainRegisterAddr := ledger.GetSubchainRegisterContractAddress()
+	if subchainRegisterAddr == nil {
+		logger.Fatalf("failed to obtain SubchainRegister contract address\n")
+	}
+	mw.subchainRegisterAddr = *subchainRegisterAddr
+	mw.subchainRegister, err = scta.NewChainRegistrarOnSubchain(*subchainRegisterAddr, mw.subchainEthRpcClient)
+	if err != nil {
+		logger.Fatalf("failed to set the subchainRegister contract: %v\n", err)
 	}
 }
 
@@ -236,6 +249,25 @@ func (mw *MetachainWitness) GetValidatorSetByDynasty(dynasty *big.Int) (*score.V
 	}
 
 	return validatorSet, nil
+}
+
+func (mw *MetachainWitness) GetValidatorSetByDynastyForChain(dynasty *big.Int, subchainID *big.Int) (*score.ValidatorSet, error) {
+	validatorSet, ok := mw.validatorSetCache[dynasty.String()]
+	if ok && validatorSet != nil && validatorSet.Dynasty() == dynasty {
+		return validatorSet, nil
+	}
+
+	var err error
+	validatorSet, err = mw.updateValidatorSetCacheForChain(dynasty, subchainID) // cache lazy update
+	if err != nil {
+		return nil, err
+	}
+
+	return validatorSet, nil
+}
+
+func (mw *MetachainWitness) AddNewSubchainChannel(targetChainID *big.Int) {
+	mw.interSubchainChannelWatchList = append(mw.interSubchainChannelWatchList, targetChainID)
 }
 
 func (mw *MetachainWitness) mainloop(ctx context.Context) {
@@ -283,15 +315,15 @@ func (mw *MetachainWitness) updateSubchainBlockHeight() {
 }
 
 func (mw *MetachainWitness) collectInterChainMessageEventsOnMainchain() {
-	mw.collectInterChainMessageEventsOnChain(mw.mainchainID, mw.mainchainEthRpcUrl, mw.mainchainTFuelTokenBankAddr, mw.mainchainTNT20TokenBankAddr, mw.mainchainTNT721TokenBankAddr)
+	mw.collectInterChainMessageEventsOnChain(mw.mainchainID, mw.mainchainEthRpcUrl, mw.mainchainTFuelTokenBankAddr, mw.mainchainTNT20TokenBankAddr, mw.mainchainTNT721TokenBankAddr, common.Address{})
 }
 
 func (mw *MetachainWitness) collectInterChainMessageEventsOnSubchain() {
-	mw.collectInterChainMessageEventsOnChain(mw.subchainID, mw.subchainEthRpcUrl, mw.subchainTFuelTokenBankAddr, mw.subchainTNT20TokenBankAddr, mw.subchainTNT721TokenBankAddr)
+	mw.collectInterChainMessageEventsOnChain(mw.subchainID, mw.subchainEthRpcUrl, mw.subchainTFuelTokenBankAddr, mw.subchainTNT20TokenBankAddr, mw.subchainTNT721TokenBankAddr, mw.subchainRegisterAddr)
 }
 
 func (mw *MetachainWitness) collectInterChainMessageEventsOnChain(queriedChainID *big.Int, ethRpcUrl string,
-	tfuelTokenBankAddr common.Address, tnt20TokenBankAddr common.Address, tnt721TokenBankAddr common.Address) {
+	tfuelTokenBankAddr common.Address, tnt20TokenBankAddr common.Address, tnt721TokenBankAddr common.Address, subchainRegisterAddr common.Address) {
 	// mw.getBlockScanStartingHeight(queriedChainID) // testing code
 
 	fromBlock, err := mw.witnessState.getLastQueryedHeightForType(queriedChainID)
@@ -303,7 +335,7 @@ func (mw *MetachainWitness) collectInterChainMessageEventsOnChain(queriedChainID
 	}
 	toBlock := mw.calculateToBlock(fromBlock, queriedChainID)
 	logger.Infof("Query inter-chain message events from block height %v to %v on chain %v", fromBlock.String(), toBlock.String(), queriedChainID.String())
-	events := siu.QueryInterChainEventLog(queriedChainID, fromBlock, toBlock, tfuelTokenBankAddr, tnt20TokenBankAddr, tnt721TokenBankAddr, mw.queryTopics, ethRpcUrl)
+	events := siu.QueryInterChainEventLog(queriedChainID, fromBlock, toBlock, tfuelTokenBankAddr, tnt20TokenBankAddr, tnt721TokenBankAddr, subchainRegisterAddr, mw.queryTopics, ethRpcUrl)
 	err = mw.interChainEventCache.InsertList(events)
 	if err != nil { // should not happen
 		logger.Panicf("failed to insert events into cache")
@@ -534,6 +566,38 @@ func (mw *MetachainWitness) updateValidatorSetCache(dynasty *big.Int) (*score.Va
 	return validatorSet, nil
 }
 
+func (mw *MetachainWitness) updateValidatorSetCacheForChain(dynasty *big.Int, subchainID *big.Int) (*score.ValidatorSet, error) {
+	mw.cacheMutex.Lock()
+	defer mw.cacheMutex.Unlock()
+
+	queryBlockHeight := big.NewInt(1).Mul(dynasty, big.NewInt(1).SetInt64(scom.NumMainchainBlocksPerDynasty))
+	queryBlockHeight = big.NewInt(0).Add(queryBlockHeight, big.NewInt(1)) // increment by one to make sure the query block height falls into the dynasty
+	vs, err := mw.chainRegistrarOnMainchain.GetValidatorSet(nil, subchainID, queryBlockHeight)
+	validatorAddrs := vs.Validators
+	validatorStakes := vs.ShareAmounts
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(validatorAddrs) != len(validatorStakes) {
+		return nil, fmt.Errorf("the length of validatorAddrs and validatorStakes are not equal")
+	}
+
+	validatorSet := score.NewValidatorSet(dynasty)
+	for i := 0; i < len(validatorAddrs); i++ {
+		validator := score.NewValidator(validatorAddrs[i].Hex(), validatorStakes[i])
+		validatorSet.AddValidator(validator)
+	}
+	mw.validatorSetCacheForAll[dynasty.String()][subchainID.String()] = validatorSet
+
+	return validatorSet, nil
+}
+
 func (mw *MetachainWitness) GetInterChainEventCache() *siu.InterChainEventCache {
 	return mw.interChainEventCache
+}
+
+func (mw *MetachainWitness) GetInterSubchainChannelWatchList() []*big.Int {
+	return mw.interSubchainChannelWatchList
 }
