@@ -15,7 +15,7 @@ import (
 	"github.com/thetatoken/thetasubchain/eth/abi"
 )
 
-func getSubchainTFuelVoucherMintLogs(fromBlock, toBlock int, contractAddr common.Address, receiver common.Address) *common.Address {
+func getSubchainTFuelVoucherMintLogs(fromBlock, toBlock int, contractAddr common.Address, receiver common.Address, targetChainEthRpcClientURL string) *common.Address {
 	const RawABI = `
 [
 	{
@@ -56,7 +56,8 @@ func getSubchainTFuelVoucherMintLogs(fromBlock, toBlock int, contractAddr common
 		"type": "event"
 	}
 ]`
-	url := "http://127.0.0.1:19888/rpc"
+	// url := "http://127.0.0.1:19888/rpc"
+	url := targetChainEthRpcClientURL
 
 	type LogData struct {
 		LogIndex         string   `json:"logIndex"`

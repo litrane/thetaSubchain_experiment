@@ -8,6 +8,9 @@ import (
 )
 
 var amount string
+var subchainID string
+var targetChainID string
+var targetChainEthRpcClientURL string
 var rootCmd = &cobra.Command{
 	Use:   "subchain_e2e_test_tools",
 	Short: "subchain end-to-end test tools",

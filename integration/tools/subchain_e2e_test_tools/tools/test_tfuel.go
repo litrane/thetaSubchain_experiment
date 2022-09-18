@@ -14,12 +14,12 @@ import (
 var dec18, _ = new(big.Int).SetString("1000000000000000000", 10)
 var crossChainFee = new(big.Int).Mul(big.NewInt(10), dec18)
 
-func MainchainTFuelLock(lockAmount *big.Int) {
+func MainchainTFuelLock(lockAmount *big.Int, targetChainID *big.Int, targetChainEthRpcClientURL string) {
 	mainchainClient, err := ethclient.Dial("http://localhost:18888/rpc")
 	if err != nil {
 		log.Fatal(err)
 	}
-	subchainClient, err := ethclient.Dial("http://localhost:19888/rpc")
+	subchainClient, err := ethclient.Dial(targetChainEthRpcClientURL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -38,21 +38,21 @@ func MainchainTFuelLock(lockAmount *big.Int) {
 	fmt.Printf("Mainchain sender : %v, TFuel balance on Mainchain       : %v\n", sender.From, senderMainchainTFuelBalance)
 	fmt.Printf("Subchain receiver: %v, TFuel voucher balance on Subchain: %v\n\n", receiver, receiverSubchainTFuelBalance)
 	sender.Value = big.NewInt(0).Add(lockAmount, crossChainFee)
-	tx, err := tfuelTokenBankInstance.LockTokens(sender, subchainID, receiver)
+	tx, err := tfuelTokenBankInstance.LockTokens(sender, targetChainID, receiver)
 	sender.Value = big.NewInt(0)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	fmt.Printf("TFuel Token Lock tx hash (Mainchain): %v\n", tx.Hash().Hex())
-	fmt.Printf("Transfering %v TFuelWei from the Mainchain to Subchain %v...\n\n", lockAmount, subchainID)
+	fmt.Printf("Transfering %v TFuelWei from the Mainchain to Subchain %v...\n\n", lockAmount, targetChainID)
 
 	fmt.Printf("Start transfer, timestamp: %v\n", time.Now())
 	fromHeight, _ := subchainClient.BlockNumber(context.Background())
 	for {
 		time.Sleep(1 * time.Second)
 		toHeight, _ := subchainClient.BlockNumber(context.Background())
-		result := getSubchainTFuelVoucherMintLogs(int(fromHeight), int(toHeight), subchainTFuelTokenBankAddress, receiver)
+		result := getSubchainTFuelVoucherMintLogs(int(fromHeight), int(toHeight), subchainTFuelTokenBankAddress, receiver, targetChainEthRpcClientURL)
 		if result != nil {
 			break
 		}

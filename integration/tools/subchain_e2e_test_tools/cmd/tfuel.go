@@ -15,7 +15,11 @@ var startMainchainTFuelLockCmd = &cobra.Command{
 		if !success {
 			panic(fmt.Sprintf("Failed to read amount: %v", amount))
 		}
-		tools.MainchainTFuelLock(amountInt)
+		targetChainIDInt, success := big.NewInt(0).SetString(targetChainID, 10)
+		if !success {
+			panic(fmt.Sprintf("Failed to read amount: %v", amount))
+		}
+		tools.MainchainTFuelLock(amountInt, targetChainIDInt, targetChainEthRpcClientURL)
 	},
 }
 
@@ -35,4 +39,7 @@ func init() {
 	rootCmd.AddCommand(startSubchainTFuelBurnCmd)
 	startMainchainTFuelLockCmd.PersistentFlags().StringVar(&amount, "amount", "10", "amount")
 	startSubchainTFuelBurnCmd.PersistentFlags().StringVar(&amount, "amount", "10", "amount")
+
+	startMainchainTFuelLockCmd.PersistentFlags().StringVar(&targetChainID, "targetChainID", "360777", "targetChainID")
+	startMainchainTFuelLockCmd.PersistentFlags().StringVar(&targetChainEthRpcClientURL, "targetChainEthRpcClientURL", "http://localhost:19888/rpc", "targetChainEthRpcClientURL")
 }

@@ -229,7 +229,7 @@ func ParseToCrossChainTFuelTokenLockedEvent(icme *InterChainMessageEvent) (*Cros
 	if icme.SourceChainID.Cmp(originatedChainID) != 0 {
 		// Token Lock events can only happen on the chain where the authenic token was deployed. Thus, the "source chain", i.e. where the token is sending from
 		// needs to be the same as the "originated chain".
-		return nil, fmt.Errorf("source chain ID mismatch for TFuel lock: %v vs %v", icme.SourceChainID, originatedChainID)
+		return nil, fmt.Errorf("source chain ID mismatch for TFuel lock: %v vs %v \n event: %v ", icme.SourceChainID, originatedChainID, event)
 	}
 
 	return &event, nil
@@ -655,7 +655,7 @@ type SubchainChannelRegisteredEvent struct {
 }
 
 func ParseToSubchainChannelRegisteredEvent(icme *InterChainMessageEvent) (*SubchainChannelRegisteredEvent, error) {
-	if icme.Type != IMCEventTypeCrossChainTokenUnlockTNT721 {
+	if icme.Type != IMCEInterSubchainChannelRegistered {
 		return nil, fmt.Errorf("invalid inter-chain message event type: %v", icme.Type)
 	}
 

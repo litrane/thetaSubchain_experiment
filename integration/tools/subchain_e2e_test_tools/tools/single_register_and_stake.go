@@ -268,7 +268,7 @@ func subchainSelectAccount(client *ethclient.Client, id int) *bind.TransactOpts 
 	return auth
 }
 
-func OneAccountRegister() {
+func OneAccountRegister(selected_subchainID *big.Int) {
 	client, err := ethclient.Dial("http://localhost:18888/rpc")
 	if err != nil {
 		log.Fatal(err)
@@ -310,11 +310,11 @@ func OneAccountRegister() {
 
 	allChainIDs, _ := instanceChainRegistrar.GetAllSubchainIDs(nil)
 	fmt.Printf("All subchain IDs before subchain registration: %v\n", allChainIDs)
-	fmt.Printf("Registering subchain %v\n", subchainID)
+	fmt.Printf("Registering subchain %v\n", selected_subchainID)
 	collateralAmount := new(big.Int).Mul(dec18, big.NewInt(40000))
 	authchainGuarantor = mainchainSelectAccount(client, 7)
 	dummyGenesisHash := "0x012345679abcdef"
-	tx, err = instanceChainRegistrar.RegisterSubchain(authchainGuarantor, subchainID, governanceTokenAddress, collateralAmount, dummyGenesisHash)
+	tx, err = instanceChainRegistrar.RegisterSubchain(authchainGuarantor, selected_subchainID, governanceTokenAddress, collateralAmount, dummyGenesisHash)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -325,7 +325,7 @@ func OneAccountRegister() {
 	fmt.Printf("Subchain registered, all subchain IDs: %v\n", allChainIDs)
 }
 
-func StakeToValidatorFromAccount(id int, validatorAddrStr string) {
+func StakeToValidatorFromAccount(id int, validatorAddrStr string, selected_subchainID *big.Int) {
 	validator := common.HexToAddress(validatorAddrStr)
 	client, err := ethclient.Dial("http://localhost:18888/rpc")
 	if err != nil {
@@ -366,7 +366,7 @@ func StakeToValidatorFromAccount(id int, validatorAddrStr string) {
 		log.Fatal(err)
 	}
 	guarantor = mainchainSelectAccount(client, id)
-	tx, err = instanceChainRegistrar.DepositCollateral(guarantor, subchainID, validator, validatorCollateral)
+	tx, err = instanceChainRegistrar.DepositCollateral(guarantor, selected_subchainID, validator, validatorCollateral)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -399,13 +399,13 @@ func StakeToValidatorFromAccount(id int, validatorAddrStr string) {
 	staker = mainchainSelectAccount(client, id)
 	minInitFeeRequired := new(big.Int).Mul(dec18, big.NewInt(100000)) // 100,000 TFuel
 	staker.Value.Set(minInitFeeRequired)
-	tx, err = instanceChainRegistrar.DepositStake(staker, subchainID, validator, validatorStakingAmount)
+	tx, err = instanceChainRegistrar.DepositStake(staker, selected_subchainID, validator, validatorStakingAmount)
 	staker.Value.Set(common.Big0)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Deposit %v Wei Gov Tokens as stake to subchain %v validator %v\n", validatorStakingAmount, subchainID, validator)
+	fmt.Printf("Deposit %v Wei Gov Tokens as stake to subchain %v validator %v\n", validatorStakingAmount, selected_subchainID, validator)
 	fmt.Printf("Stake deposit tx hash (Mainchain): %v\n", tx.Hash().Hex())
 
 	time.Sleep(12 * time.Second)
@@ -413,12 +413,12 @@ func StakeToValidatorFromAccount(id int, validatorAddrStr string) {
 	dynasty := scom.CalculateDynasty(big.NewInt(int64(mainchainHeight)))
 	fmt.Printf("Maichain block height: %v, dynasty: %v\n", mainchainHeight, dynasty)
 
-	valset, _ := instanceChainRegistrar.GetValidatorSet(nil, subchainID, dynasty)
-	fmt.Printf("Validator Set for subchain %v during the current dynasty %v: %v\n", subchainID, dynasty, valset)
+	valset, _ := instanceChainRegistrar.GetValidatorSet(nil, selected_subchainID, dynasty)
+	fmt.Printf("Validator Set for subchain %v during the current dynasty %v: %v\n", selected_subchainID, dynasty, valset)
 
 	nextDynasty := big.NewInt(0).Add(dynasty, big.NewInt(1))
-	valsetNext, _ := instanceChainRegistrar.GetValidatorSet(nil, subchainID, nextDynasty)
-	fmt.Printf("Validator Set for subchain %v during the next dynasty    %v: %v\n", subchainID, nextDynasty, valsetNext)
+	valsetNext, _ := instanceChainRegistrar.GetValidatorSet(nil, selected_subchainID, nextDynasty)
+	fmt.Printf("Validator Set for subchain %v during the next dynasty    %v: %v\n", selected_subchainID, nextDynasty, valsetNext)
 }
 
 func claimStake() {
