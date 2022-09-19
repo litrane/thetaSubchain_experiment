@@ -92,7 +92,7 @@ var EventSelectors = map[score.InterChainMessageEventType]string{
 	score.IMCEventTypeCrossChainTokenUnlockTNT721: crypto.Keccak256Hash([]byte("TNT721TokenUnlocked(string,address,uint256,uint256,uint256)")).Hex(),
 
 	// InterSubchainChannel events
-	score.IMCEInterSubchainChannelRegistered: crypto.Keccak256Hash([]byte("ChannelRegistered(address,uint256,string,uint256")).Hex(),
+	score.IMCEInterSubchainChannelRegistered: crypto.Keccak256Hash([]byte("ChannelRegistered(address,uint256,string,uint256)")).Hex(),
 }
 
 func QueryInterChainEventLog(queriedChainID *big.Int, fromBlock *big.Int, toBlock *big.Int, tfuelTokenBankAddress common.Address, tnt20TokenBankAddress common.Address, tnt721TokenBankAddress common.Address, subchainRegisterAddr common.Address, queryTopics string, url string) []*score.InterChainMessageEvent {

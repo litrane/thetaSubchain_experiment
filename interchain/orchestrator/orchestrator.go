@@ -27,7 +27,9 @@ import (
 var logger *log.Entry = log.WithFields(log.Fields{"prefix": "orchestrator"})
 
 var (
-	ErrDynastyIsNil = errors.New("Nil dynasty")
+	ErrDynastyIsNil          = errors.New("nil dynasty")
+	ErrUnregisteredSubchain  = errors.New("subchain unregistered")
+	ErrTargetChainIDMismatch = errors.New("chainID mismatch")
 )
 
 type Orchestrator struct {
@@ -41,6 +43,7 @@ type Orchestrator struct {
 	// The mainchain
 	mainchainID                  *big.Int
 	mainchainEthRpcURL           string
+	chainRegistrarOnMainchain    *scta.ChainRegistrarOnMainchain // the ChainRegistrarOnMainchain contract deployed on the mainchain
 	mainchainEthRpcClient        *ec.Client
 	mainchainTFuelTokenBankAddr  common.Address
 	mainchainTFuelTokenBank      *scta.TFuelTokenBank
@@ -85,6 +88,11 @@ func NewOrchestrator(db database.Database, updateInterval int, interChainEventCa
 	if err != nil {
 		logger.Fatalf("failed to get the chainID of the mainchain, is the mainchain RPC API service running? error: %v\n", err)
 	}
+	chainRegistrarOnMainchainAddr := common.HexToAddress(viper.GetString(scom.CfgChainRegistrarOnMainchainContractAddress))
+	chainRegistrarOnMainchain, err := scta.NewChainRegistrarOnMainchain(chainRegistrarOnMainchainAddr, mainchainEthRpcClient)
+	if err != nil {
+		logger.Fatalf("failed to create ChainRegistrarOnMainchain contract: %v\n", err)
+	}
 	mainchainTFuelTokenBankAddr := common.HexToAddress(viper.GetString(scom.CfgMainchainTFuelTokenBankContractAddress))
 	mainchainTFuelTokenBank, err := scta.NewTFuelTokenBank(mainchainTFuelTokenBankAddr, mainchainEthRpcClient)
 	if err != nil {
@@ -116,6 +124,7 @@ func NewOrchestrator(db database.Database, updateInterval int, interChainEventCa
 		mainchainID:                  mainchainID,
 		mainchainEthRpcURL:           mainchainEthRpcURL,
 		mainchainEthRpcClient:        mainchainEthRpcClient,
+		chainRegistrarOnMainchain:    chainRegistrarOnMainchain,
 		mainchainTFuelTokenBankAddr:  mainchainTFuelTokenBankAddr,
 		mainchainTFuelTokenBank:      mainchainTFuelTokenBank,
 		mainchainTNT20TokenBankAddr:  mainchainTNT20TokenBankAddr,
@@ -306,7 +315,7 @@ func (oc *Orchestrator) processNextSubchainRegisterEvent() {
 		return // ignore
 	}
 
-	oc.processNextEvent(oc.subchainID, common.Big0, score.IMCEInterSubchainChannelRegistered, maxProcessedSubchainRegisteredNonce)
+	oc.processNextEvent(nil, common.Big0, score.IMCEInterSubchainChannelRegistered, maxProcessedSubchainRegisteredNonce)
 }
 
 func (oc *Orchestrator) processNextEvent(sourceChainID *big.Int, targetChainID *big.Int, sourceChainEventType score.InterChainMessageEventType, maxProcessedNonce *big.Int) {
@@ -321,14 +330,14 @@ func (oc *Orchestrator) processNextEvent(sourceChainID *big.Int, targetChainID *
 	logger.Debugf("Process next event, sourceChainID: %v, targetChainID: %v, sourceChainEventType: %v, nextNonce: %v",
 		sourceChainID, targetChainID, sourceChainEventType, nextNonce)
 
-	targetEventType := oc.getTargetChainCorrespondingEventType(sourceChainEventType)
+	// targetEventType := oc.getTargetChainCorrespondingEventType(sourceChainEventType)
 	retryThreshold := oc.getRetryThreshold(targetChainID)
 	if oc.timeElapsedSinceEventProcessed(sourceEvent) > retryThreshold { // retry if the tx has been submitted for a long time
 		var err error
 		if sourceChainEventType == score.IMCEInterSubchainChannelRegistered {
 			err = oc.verifyChannelValidity(sourceEvent)
 		} else {
-			err = oc.callTargetContract(targetChainID, targetEventType, sourceEvent)
+			// err = oc.callTargetContract(targetChainID, targetEventType, sourceEvent)
 		}
 
 		if err == nil {
@@ -345,21 +354,27 @@ func (oc *Orchestrator) verifyChannelValidity(event *score.InterChainMessageEven
 	if err != nil {
 		return err
 	}
-	mainchainEthRpcURL := viper.GetString(scom.CfgMainchainEthRpcURL)
-	newSubchainChannel, err := ec.Dial(mainchainEthRpcURL)
+	isRegisteredSubchain, _ := oc.chainRegistrarOnMainchain.IsARegisteredSubchain(nil, se.ChainID)
+	if !isRegisteredSubchain {
+		logger.Warnf("subchain unregistered")
+		return ErrUnregisteredSubchain
+	}
+	newSubchainChannel, err := ec.Dial(se.IP)
 	if err != nil {
-		logger.Fatalf("the ETH client failed to connect to the mainchain ETH RPC %v\n", err)
+		logger.Warnf("the ETH client failed to connect to the target chain ETH RPC %v\n", err)
 		return err
 	}
 	channelValidity := siu.QuerySubchainID(se.ChainID, se.IP)
+	if !channelValidity {
+		logger.Warnf("subchain unregistered")
+		return ErrTargetChainIDMismatch
+	}
 	txOpts, err := oc.buildTxOpts(oc.subchainID, oc.subchainEthRpcClient)
 	if err != nil {
 		return err
 	}
-	if channelValidity {
-		oc.interSubchainChannels[event.TargetChainID.String()] = newSubchainChannel
-	}
 	err = oc.callVerifySubchainChannelValidity(txOpts, se.ChainID, channelValidity, se.Nonce)
+	oc.interSubchainChannels[event.TargetChainID.String()] = newSubchainChannel
 	return err
 }
 
