@@ -32,7 +32,6 @@ var startGetCrossChainFeeFromRegistrarCmd = &cobra.Command{
 var startCheckChannelStatusCmd = &cobra.Command{
 	Use: "GetChannelStatusFromRegistrar",
 	Run: func(cmd *cobra.Command, args []string) {
-		// 加chainID和IP就行
 		targetChainIDInt, success := big.NewInt(0).SetString(targetChainID, 10)
 		if !success {
 			panic(fmt.Sprintf("Failed to read amount: %v", amount))
@@ -41,12 +40,28 @@ var startCheckChannelStatusCmd = &cobra.Command{
 	},
 }
 
+var startVerifyChannelCmd = &cobra.Command{
+	Use: "VerifyChannel",
+	Run: func(cmd *cobra.Command, args []string) {
+		// 加chainID和IP就行
+		targetChainIDInt, success := big.NewInt(0).SetString(targetChainID, 10)
+		if !success {
+			panic(fmt.Sprintf("Failed to read amount: %v", amount))
+		}
+		tools.VerifyChannel(targetChainIDInt, targetChainEthRpcClientURL)
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(startRegisterChannelCmd)
 	rootCmd.AddCommand(startGetMaxProcessedNonceCmd)
 	rootCmd.AddCommand(startGetCrossChainFeeFromRegistrarCmd)
 	rootCmd.AddCommand(startCheckChannelStatusCmd)
+	rootCmd.AddCommand(startVerifyChannelCmd)
 
 	startCheckChannelStatusCmd.PersistentFlags().StringVar(&targetChainID, "targetChainID", "360888", "targetChainID")
 	startCheckChannelStatusCmd.PersistentFlags().StringVar(&targetChainEthRpcClientURL, "targetChainEthRpcClientURL", "http://localhost:19988/rpc", "targetChainEthRpcClientURL")
+
+	startVerifyChannelCmd.PersistentFlags().StringVar(&targetChainID, "targetChainID", "360888", "targetChainID")
+	startVerifyChannelCmd.PersistentFlags().StringVar(&targetChainEthRpcClientURL, "targetChainEthRpcClientURL", "http://localhost:19988/rpc", "targetChainEthRpcClientURL")
 }

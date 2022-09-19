@@ -17,7 +17,7 @@ func SubchainChannelRegister(targetChainID *big.Int, IP string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("Preparing for RegisterChannelOnSubchain...\n")
+	fmt.Printf("Preparing for RegisterChannelOnSubchain for chainID %v and IP is %v...\n", targetChainID.String(), IP)
 	subchainRegisterAddr := common.HexToAddress("0xBd770416a3345F91E4B34576cb804a576fa48EB1")
 	subchainRegisterInstance, _ := ct.NewChainRegistrarOnSubchain(subchainRegisterAddr, subchainClient)
 
@@ -93,4 +93,21 @@ func GetChannelStatusFromRegistrar(targetChainID *big.Int, targetChainEthRpcClie
 		return // ignore
 	}
 	log.Printf("The Channel from %v to %v is active? : %v", localChainID.String(), targetChainID.String(), channelStatus)
+}
+
+func VerifyChannel(targetChainID *big.Int, targetChainEthRpcClientURL string) {
+	subchainClient, err := ethclient.Dial(targetChainEthRpcClientURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Preparing for Verify Query Channel for chainID %v...\n", targetChainID.String())
+	subchainRegisterAddr := common.HexToAddress("0xBd770416a3345F91E4B34576cb804a576fa48EB1")
+	subchainRegisterInstance, _ := ct.NewChainRegistrarOnSubchain(subchainRegisterAddr, subchainClient)
+	authUser := subchainSelectAccount(subchainClient, 1)
+	tx, err := subchainRegisterInstance.UpdateSubchainChannelStatus(authUser, targetChainID, true, big.NewInt(2))
+	if err != nil {
+		log.Fatal(err)
+		return // ignore
+	}
+	fmt.Println(tx.Hash().Hex())
 }

@@ -330,14 +330,14 @@ func (oc *Orchestrator) processNextEvent(sourceChainID *big.Int, targetChainID *
 	logger.Debugf("Process next event, sourceChainID: %v, targetChainID: %v, sourceChainEventType: %v, nextNonce: %v",
 		sourceChainID, targetChainID, sourceChainEventType, nextNonce)
 
-	// targetEventType := oc.getTargetChainCorrespondingEventType(sourceChainEventType)
+	targetEventType := oc.getTargetChainCorrespondingEventType(sourceChainEventType)
 	retryThreshold := oc.getRetryThreshold(targetChainID)
 	if oc.timeElapsedSinceEventProcessed(sourceEvent) > retryThreshold { // retry if the tx has been submitted for a long time
 		var err error
 		if sourceChainEventType == score.IMCEInterSubchainChannelRegistered {
 			err = oc.verifyChannelValidity(sourceEvent)
 		} else {
-			// err = oc.callTargetContract(targetChainID, targetEventType, sourceEvent)
+			err = oc.callTargetContract(targetChainID, targetEventType, sourceEvent)
 		}
 
 		if err == nil {
@@ -374,8 +374,11 @@ func (oc *Orchestrator) verifyChannelValidity(event *score.InterChainMessageEven
 		return err
 	}
 	err = oc.callVerifySubchainChannelValidity(txOpts, se.ChainID, channelValidity, se.Nonce)
+	if err != nil {
+		return err
+	}
 	oc.interSubchainChannels[event.TargetChainID.String()] = newSubchainChannel
-	return err
+	return nil
 }
 
 func (oc *Orchestrator) cleanUpInterChainEventCache(sourceChainID *big.Int, eventType score.InterChainMessageEventType, maxProcessedNonce *big.Int) {
@@ -455,7 +458,7 @@ func (oc *Orchestrator) callVerifySubchainChannelValidity(txOpts *bind.TransactO
 	if dynasty == nil {
 		return ErrDynastyIsNil
 	}
-	_, err := oc.subchainRegister.UpdateSubchainChannelStatus(txOpts, oc.subchainID, targetChainID, dynasty, channelValidity, eventNonce)
+	_, err := oc.subchainRegister.UpdateSubchainChannelStatus(txOpts, targetChainID, channelValidity, eventNonce)
 	if err != nil {
 		logger.Warnf("Failed to call the target contract: ", err)
 		return err
@@ -662,6 +665,9 @@ func (oc *Orchestrator) getTargetChainCorrespondingEventType(eventType score.Int
 		return score.IMCEventTypeCrossChainTokenUnlockTNT20
 	case score.IMCEventTypeCrossChainVoucherBurnTNT721:
 		return score.IMCEventTypeCrossChainTokenUnlockTNT721
+
+	case score.IMCEInterSubchainChannelRegistered:
+		return score.IMCEInterSubchainChannelRegistered
 
 	default:
 		logger.Fatalf("Cannot get the counter event for type: %v", eventType)
