@@ -19,5 +19,5 @@ subchain:
   mainchainTNT20TB: "0x2Ce636d6240f8955d085a896e12429f8B3c7db26"
   mainchainTNT721TB: "0xEd8d61f42dC1E56aE992D333A4992C3796b22A74"
   updateInterval: 3000
-  #chainID: 360777
+  chainID: 360888
 
