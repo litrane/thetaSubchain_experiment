@@ -493,6 +493,17 @@ func (oc *Orchestrator) mintTNT20Vouchers(txOpts *bind.TransactOpts, targetChain
 	if dynasty == nil {
 		return ErrDynastyIsNil
 	}
+	if targetChainID.Cmp(big.NewInt(oc.mainchainID.Int64())) != 0 && targetChainID.Cmp(big.NewInt(oc.subchainID.Int64())) != 0 {
+		sidechainTNT20TokenBank, err := scta.NewTNT20TokenBank(oc.subchainTNT20TokenBankAddr, oc.subchainEthRpcClient)
+		if err != nil {
+			logger.Fatalf("failed to set the SubchainTNT20TokenBank contract: %v\n", err)
+		}
+		_, err = sidechainTNT20TokenBank.MintVouchers(txOpts, se.Denom, se.Name, se.Symbol, se.Decimals, se.TargetChainVoucherReceiver, se.LockedAmount, dynasty, se.TokenLockNonce)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 	TNT20TokenBank := oc.getTNT20TokenBank(targetChainID)
 	_, err = TNT20TokenBank.MintVouchers(txOpts, se.Denom, se.Name, se.Symbol, se.Decimals, se.TargetChainVoucherReceiver, se.LockedAmount, dynasty, se.TokenLockNonce)
 	if err != nil {
@@ -619,8 +630,10 @@ func (oc *Orchestrator) getRetryThreshold(chainID *big.Int) time.Duration {
 func (oc *Orchestrator) getEthRpcClient(chainID *big.Int) *ec.Client {
 	if chainID.Cmp(oc.mainchainID) == 0 {
 		return oc.mainchainEthRpcClient
-	} else {
+	} else if chainID.Cmp(oc.subchainID) == 0 {
 		return oc.subchainEthRpcClient
+	} else {
+		return oc.interSubchainChannels["tsub"+chainID.String()] //FIX
 	}
 }
 
