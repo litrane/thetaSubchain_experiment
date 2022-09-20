@@ -7,10 +7,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var amount string
-var subchainID string
-var targetChainID string
-var targetChainEthRpcClientURL string
+var (
+	amount                                       string
+	subchainID                                   string
+	targetChainID                                string
+	targetChainEthRpcClientURL                   string
+	targetChainIDForVerify                       string
+	targetChainEthRpcClientURLForVerify          string
+	targetChainIDForChannelRegister              string
+	targetChainEthRpcClientURLForChannelRegister string
+
+	sourceChainEthRpcClientURLForChannelRegister string
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "subchain_e2e_test_tools",
 	Short: "subchain end-to-end test tools",

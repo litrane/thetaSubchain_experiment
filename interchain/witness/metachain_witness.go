@@ -336,7 +336,7 @@ func (mw *MetachainWitness) collectInterChainMessageEventsOnChain(queriedChainID
 	toBlock := mw.calculateToBlock(fromBlock, queriedChainID)
 	logger.Infof("Query inter-chain message events from block height %v to %v on chain %v", fromBlock.String(), toBlock.String(), queriedChainID.String())
 	events := siu.QueryInterChainEventLog(queriedChainID, fromBlock, toBlock, tfuelTokenBankAddr, tnt20TokenBankAddr, tnt721TokenBankAddr, subchainRegisterAddr, mw.queryTopics, ethRpcUrl)
-	err = mw.interChainEventCache.InsertList(events)
+	err = mw.interChainEventCache.InsertList(events, mw.mainchainID, mw.subchainID)
 	if err != nil { // should not happen
 		logger.Panicf("failed to insert events into cache")
 	}

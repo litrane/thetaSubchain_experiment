@@ -115,6 +115,7 @@ func NewOrchestrator(db database.Database, updateInterval int, interChainEventCa
 		logger.Fatalf("the ETH client failed to connect to the subchain ETH RPC: %v\n", err)
 	}
 	eventProcessedTime := make(map[string]time.Time)
+	interSubchainChannels := make(map[string]*ec.Client)
 	oc := &Orchestrator{
 		updateInterval:     updateInterval,
 		privateKey:         privateKey,
@@ -136,7 +137,8 @@ func NewOrchestrator(db database.Database, updateInterval int, interChainEventCa
 		subchainEthRpcURL:    subchainEthRpcURL,
 		subchainEthRpcClient: subchainEthRpcClient,
 
-		interChainEventCache: interChainEventCache,
+		interChainEventCache:  interChainEventCache,
+		interSubchainChannels: interSubchainChannels,
 
 		wg: &sync.WaitGroup{},
 	}
@@ -373,6 +375,7 @@ func (oc *Orchestrator) verifyChannelValidity(event *score.InterChainMessageEven
 	if err != nil {
 		return err
 	}
+	txOpts.GasPrice = big.NewInt(4000000000000)
 	err = oc.callVerifySubchainChannelValidity(txOpts, se.ChainID, channelValidity, se.Nonce)
 	if err != nil {
 		return err
