@@ -54,12 +54,15 @@ func (c *InterChainEventCache) Insert(event *score.InterChainMessageEvent) error
 	return err // the caller should handle the error
 }
 
-func (c *InterChainEventCache) InsertList(events []*score.InterChainMessageEvent) error {
+func (c *InterChainEventCache) InsertList(events []*score.InterChainMessageEvent, mainchainID *big.Int, localchainID *big.Int) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	store := kvstore.NewKVStore(c.db)
 	for _, event := range events {
+		if event.TargetChainID.Cmp(mainchainID) != 0 && event.TargetChainID.Cmp(localchainID) != 0 {
+			continue
+		}
 		err := store.Put(InterChainEventIndexKey(event.SourceChainID, event.Type, event.Nonce), event)
 		if err != nil {
 			return err // the caller should handle the error

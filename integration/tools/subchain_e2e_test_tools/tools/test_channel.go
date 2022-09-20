@@ -12,8 +12,8 @@ import (
 	ct "github.com/thetatoken/thetasubchain/interchain/contracts/accessors"
 )
 
-func SubchainChannelRegister(targetChainID *big.Int, IP string) {
-	subchainClient, err := ethclient.Dial("http://localhost:19888/rpc")
+func SubchainChannelRegister(targetChainID *big.Int, IP string, sourceChainEthRpcClientURL string) {
+	subchainClient, err := ethclient.Dial(sourceChainEthRpcClientURL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -100,10 +100,11 @@ func VerifyChannel(targetChainID *big.Int, targetChainEthRpcClientURL string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("Preparing for Verify Query Channel for chainID %v...\n", targetChainID.String())
+	fmt.Printf("Preparing for Verify Query Channel for chainID %v, IP is %v...\n", targetChainID.String(), targetChainEthRpcClientURL)
 	subchainRegisterAddr := common.HexToAddress("0xBd770416a3345F91E4B34576cb804a576fa48EB1")
 	subchainRegisterInstance, _ := ct.NewChainRegistrarOnSubchain(subchainRegisterAddr, subchainClient)
 	authUser := subchainSelectAccount(subchainClient, 1)
+	fmt.Println(authUser.GasPrice)
 	tx, err := subchainRegisterInstance.UpdateSubchainChannelStatus(authUser, targetChainID, true, big.NewInt(2))
 	if err != nil {
 		log.Fatal(err)
