@@ -54,8 +54,8 @@ func (exec *SubchainValidatorSetUpdateForChainTxExecutor) sanityCheck(chainID st
 		return res
 	}
 
-	// verify that at most one subchain validator set update transaction is processed for each block, only local subchain needs this
-	if tx.SubchainID.String() == chainID && view.SubchainValidatorSetTransactionProcessed() {
+	// verify that at most one subchain validator set update transaction is processed for each block
+	if view.GetSubchainValidatorSetTransactionProcessedForChain(tx.SubchainID, view.GetBlockHeight()) {
 		return result.Error("Another subchain validator set update transaction has been processed for the current block")
 	}
 
@@ -82,8 +82,8 @@ func (exec *SubchainValidatorSetUpdateForChainTxExecutor) sanityCheck(chainID st
 func (exec *SubchainValidatorSetUpdateForChainTxExecutor) process(chainID string, view *slst.StoreView, viewSel score.ViewSelector, transaction types.Tx) (common.Hash, result.Result) {
 	tx := transaction.(*stypes.SubchainValidatorSetUpdateForChainTx)
 
-	if tx.SubchainID.String() == chainID && view.SubchainValidatorSetTransactionProcessed() {
-		return common.Hash{}, result.Error("Another subchain validator set update transaction has been processed for the current block")
+	if view.GetSubchainValidatorSetTransactionProcessedForChain(tx.SubchainID, view.GetBlockHeight()) {
+		return common.Hash{}, result.Error(fmt.Sprintf("Another subchain validator set update transaction for this chain %v  has been processed for the current block", tx.SubchainID))
 	}
 
 	// new validator set and dynasty from the transaction
@@ -102,7 +102,8 @@ func (exec *SubchainValidatorSetUpdateForChainTxExecutor) process(chainID string
 	}
 
 	currentDynasty := view.GetDynasty()
-	if newDynasty.Cmp(currentDynasty) <= 0 {
+	isInitValidatorSetUpdate := view.GetValidatorSetForchain(tx.SubchainID) == nil
+	if !isInitValidatorSetUpdate && newDynasty.Cmp(currentDynasty) <= 0 {
 		// This must be an invalid block, since dynasty needs to strictly increase. Without this check,
 		// a malicious proposer may attempt to install a validator set of a previous dynasty.
 		return common.Hash{}, result.Error(fmt.Sprintf("new dynasty needs to be strictly larger than the current dynasty (new: %v, current: %v)", newDynasty, currentDynasty))
@@ -120,12 +121,13 @@ func (exec *SubchainValidatorSetUpdateForChainTxExecutor) process(chainID string
 	// update the dynasty and the subchain validator set
 	// selfChainIDInt := scom.MapChainID(chainID)
 	view.UpdateValidatorSetForChain(tx.SubchainID, newValidatorSet)
-	if tx.SubchainID.String() == chainID {
-		view.SetSubchainValidatorSetTransactionProcessed(true)
-	}
+	view.SetSubchainValidatorSetTransactionProcessedForChain(tx.SubchainID, view.GetBlockHeight(), true)
+	// if tx.SubchainID.String() == chainID {
+	// 	view.SetSubchainValidatorSetTransactionProcessed(true)
+	// }
 	txHash := types.TxID(chainID, tx)
 
-	logger.Debugf("Update validator set tx processed, chainID: %v, viewSel: %v, blockHeight: %v", tx.SubchainID, viewSel, view.GetBlockHeight())
+	logger.Debugf("Update validator set for chain tx processed, chainID: %v, viewSel: %v, blockHeight: %v", tx.SubchainID, viewSel, view.GetBlockHeight())
 
 	return txHash, result.OK
 }

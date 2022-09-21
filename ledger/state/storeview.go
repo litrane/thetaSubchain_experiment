@@ -157,6 +157,29 @@ func (sv *StoreView) SetSubchainValidatorSetTransactionProcessed(processed bool)
 	sv.subchainValidatorSetTransactinProcessed = processed
 }
 
+// SubchainValidatorSetTransactionProcessedForChain returns whether the validator set update transaction for the current block has been processed for a specific chain
+func (sv *StoreView) GetSubchainValidatorSetTransactionProcessedForChain(subchainID *big.Int, blockHeight uint64) bool {
+	data := sv.Get(ValidatorSetChangeProcessedKeyForChain(subchainID, blockHeight))
+	if data == nil || len(data) == 0 {
+		// haven't been processed
+		return false
+	}
+	// if we can get the data, it means we have processed it.
+	return true
+}
+
+// SetSubchainValidatorSetTransactionProcessedForChain sets whether the validator set update transaction for the current block has been processed for a specific chain
+func (sv *StoreView) SetSubchainValidatorSetTransactionProcessedForChain(subchainID *big.Int, blockHeight uint64, processed bool) {
+	logger.Debugf("Update validator set has been update for subchainID: %v", subchainID)
+
+	hasProcessedBytes, err := types.ToBytes(processed)
+	if err != nil {
+		log.Panicf("Error writing has processed %v for chain %v, error: %v",
+			processed, subchainID, err.Error())
+	}
+	sv.Set(ValidatorSetChangeProcessedKeyForChain(subchainID, blockHeight), hasProcessedBytes)
+}
+
 // GetAccount returns an account.
 func (sv *StoreView) GetAccount(addr common.Address) *types.Account {
 	data := sv.Get(AccountKey(addr))

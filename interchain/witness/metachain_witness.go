@@ -120,7 +120,7 @@ func NewMetachainWitness(db database.Database, updateInterval int, interChainEve
 
 	witnessState := newMetachainWitnessState(db)
 	validatorSet := make(map[string]*score.ValidatorSet)
-
+	validatorSetCacheForAll := make(map[string]map[string]*score.ValidatorSet)
 	var queryTopics string
 	for _, eventTopicString := range siu.EventSelectors {
 		queryTopics = queryTopics + ",\"" + eventTopicString + "\""
@@ -145,15 +145,19 @@ func NewMetachainWitness(db database.Database, updateInterval int, interChainEve
 		mainchainBlockHeight:         nil,
 		lastQueryedMainChainHeight:   big.NewInt(0),
 
-		subchainID:           subchainID,
-		subchainEthRpcUrl:    subchainEthRpcURL,
-		subchainEthRpcClient: subchainEthRpcClient,
-		subchainBlockHeight:  nil,
-		cacheMutex:           &sync.Mutex{},
-		validatorSetCache:    validatorSet,
-		interChainEventCache: interChainEventCache,
+		subchainID:              subchainID,
+		subchainEthRpcUrl:       subchainEthRpcURL,
+		subchainEthRpcClient:    subchainEthRpcClient,
+		subchainBlockHeight:     nil,
+		cacheMutex:              &sync.Mutex{},
+		validatorSetCache:       validatorSet,
+		validatorSetCacheForAll: validatorSetCacheForAll,
+		interChainEventCache:    interChainEventCache,
 
 		wg: &sync.WaitGroup{},
+	}
+	if mw.subchainID.Cmp(big.NewInt(360888)) != 0 {
+		mw.interSubchainChannelWatchList = append(mw.interSubchainChannelWatchList, big.NewInt(360888))
 	}
 	return mw
 }
@@ -252,7 +256,7 @@ func (mw *MetachainWitness) GetValidatorSetByDynasty(dynasty *big.Int) (*score.V
 }
 
 func (mw *MetachainWitness) GetValidatorSetByDynastyForChain(dynasty *big.Int, subchainID *big.Int) (*score.ValidatorSet, error) {
-	validatorSet, ok := mw.validatorSetCache[dynasty.String()]
+	validatorSet, ok := mw.validatorSetCacheForAll[dynasty.String()][subchainID.String()]
 	if ok && validatorSet != nil && validatorSet.Dynasty() == dynasty {
 		return validatorSet, nil
 	}
@@ -588,6 +592,9 @@ func (mw *MetachainWitness) updateValidatorSetCacheForChain(dynasty *big.Int, su
 	for i := 0; i < len(validatorAddrs); i++ {
 		validator := score.NewValidator(validatorAddrs[i].Hex(), validatorStakes[i])
 		validatorSet.AddValidator(validator)
+	}
+	if mw.validatorSetCacheForAll[dynasty.String()][subchainID.String()] == nil {
+		mw.validatorSetCacheForAll[dynasty.String()] = make(map[string]*score.ValidatorSet)
 	}
 	mw.validatorSetCacheForAll[dynasty.String()][subchainID.String()] = validatorSet
 

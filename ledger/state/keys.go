@@ -49,6 +49,14 @@ func CurrentValidatorSetKey() common.Bytes {
 	return common.Bytes("ls/vs")
 }
 
+// ValidatorSetChangeProcessedKeyForChain returns the state key for whther the validator set has been updated for the block for a specific chain
+func ValidatorSetChangeProcessedKeyForChain(subchainID *big.Int, blockHeight uint64) common.Bytes {
+	key := common.Bytes("ls/vscp")
+	key = append(key, common.Bytes(subchainID.String())...)
+	key = append(key, common.Bytes("/"+string(blockHeight))...)
+	return key
+}
+
 // ValidatorSetKeyForChain returns the state key for the validator stake holder set for specific chainID
 func ValidatorSetKeyForChain(subchainID *big.Int) common.Bytes {
 	key := common.Bytes("ls/vs")
