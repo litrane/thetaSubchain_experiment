@@ -17,4 +17,5 @@ type ChainWitness interface {
 	GetValidatorSetByDynastyForChain(dynasty *big.Int, subchainID *big.Int) (*score.ValidatorSet, error)
 	GetInterChainEventCache() *siu.InterChainEventCache
 	GetInterSubchainChannelWatchList() []*big.Int
+	// InsertIntoSubchainChannelWatchList(*big.Int)
 }

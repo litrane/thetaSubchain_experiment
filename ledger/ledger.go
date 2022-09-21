@@ -724,6 +724,11 @@ func (ledger *Ledger) getNewDynastyAndValidatorSetForChain(view *slst.StoreView,
 	// retrieve the dynasty from the "finalized" validator set, the code could issue validator set update
 	// txs for two consecutive blocks, where the second tx will be rejected.
 	currentDynastyForChain := view.GetDynastyForChain(subchainID)
+	isInitValidatorSetUpdate := view.GetValidatorSetForchain(subchainID) == nil
+	if currentDynastyForChain == nil {
+		// new channel, no validator information
+		currentDynastyForChain = big.NewInt(0)
+	}
 	mainchainBlockHeight, err := ledger.metachainWitness.GetMainchainBlockHeight()
 	if err != nil {
 		logger.Warn("Failed to get mainchain block number when checking validator set updates, err: %v", err)
@@ -737,11 +742,11 @@ func (ledger *Ledger) getNewDynastyAndValidatorSetForChain(view *slst.StoreView,
 		return false, nil, nil
 	}
 
-	if witnessedDynasty.Cmp(currentDynastyForChain) <= 0 {
+	if !isInitValidatorSetUpdate && witnessedDynasty.Cmp(currentDynastyForChain) <= 0 {
 		return false, nil, nil
 	}
 
-	// at this point: witnessedDynasty >= currentDynastyForChain + 1, we are entering a new dynasty
+	// at this point: witnessedDynasty >= currentDynastyForChain + 1, or it is an init validator set update
 
 	validatorSetInView := view.GetValidatorSetForchain(subchainID)
 

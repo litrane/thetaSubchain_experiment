@@ -142,6 +142,13 @@ func NewOrchestrator(db database.Database, updateInterval int, interChainEventCa
 
 		wg: &sync.WaitGroup{},
 	}
+	if oc.subchainID.Cmp(big.NewInt(360888)) != 0 {
+		cl, err := ec.Dial("http://localhost:19988/rpc")
+		if err != nil {
+			log.Panic()
+		}
+		oc.interSubchainChannels["360888"] = cl
+	}
 	return oc
 }
 
@@ -368,7 +375,7 @@ func (oc *Orchestrator) verifyChannelValidity(event *score.InterChainMessageEven
 	}
 	channelValidity := siu.QuerySubchainID(se.ChainID, se.IP)
 	if !channelValidity {
-		logger.Warnf("subchain unregistered")
+		logger.Warnf("subchainID mismatch")
 		return ErrTargetChainIDMismatch
 	}
 	txOpts, err := oc.buildTxOpts(oc.subchainID, oc.subchainEthRpcClient)
@@ -381,6 +388,7 @@ func (oc *Orchestrator) verifyChannelValidity(event *score.InterChainMessageEven
 		return err
 	}
 	oc.interSubchainChannels[event.TargetChainID.String()] = newSubchainChannel
+	// oc.metachainWitness.InsertIntoSubchainChannelWatchList(event.TargetChainID)
 	return nil
 }
 

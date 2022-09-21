@@ -36,10 +36,11 @@ type Executor struct {
 	valMgr    score.ValidatorManager
 	ledger    score.Ledger
 
-	coinbaseTxExec                   *CoinbaseTxExecutor
-	subchainValidatorSetUpdateTxExec *SubchainValidatorSetUpdateTxExecutor
-	sendTxExec                       *SendTxExecutor
-	smartContractTxExec              *SmartContractTxExecutor
+	coinbaseTxExec                           *CoinbaseTxExecutor
+	subchainValidatorSetUpdateTxExec         *SubchainValidatorSetUpdateTxExecutor
+	subchainValidatorSetUpdateForChainTxExec *SubchainValidatorSetUpdateForChainTxExecutor
+	sendTxExec                               *SendTxExecutor
+	smartContractTxExec                      *SmartContractTxExecutor
 
 	skipSanityCheck bool
 }
@@ -48,16 +49,17 @@ type Executor struct {
 func NewExecutor(db database.Database, chain *sbc.Chain, state *slst.LedgerState, consensus score.ConsensusEngine,
 	valMgr score.ValidatorManager, ledger score.Ledger, metachainWitness witness.ChainWitness) *Executor {
 	executor := &Executor{
-		db:                               db,
-		chain:                            chain,
-		state:                            state,
-		consensus:                        consensus,
-		valMgr:                           valMgr,
-		coinbaseTxExec:                   NewCoinbaseTxExecutor(db, chain, state, consensus, valMgr),
-		subchainValidatorSetUpdateTxExec: NewSubchainValidatorSetUpdateTxExecutor(db, chain, state, consensus, valMgr, metachainWitness),
-		sendTxExec:                       NewSendTxExecutor(state),
-		smartContractTxExec:              NewSmartContractTxExecutor(chain, state, ledger, valMgr),
-		skipSanityCheck:                  false,
+		db:                                       db,
+		chain:                                    chain,
+		state:                                    state,
+		consensus:                                consensus,
+		valMgr:                                   valMgr,
+		coinbaseTxExec:                           NewCoinbaseTxExecutor(db, chain, state, consensus, valMgr),
+		subchainValidatorSetUpdateTxExec:         NewSubchainValidatorSetUpdateTxExecutor(db, chain, state, consensus, valMgr, metachainWitness),
+		subchainValidatorSetUpdateForChainTxExec: NewSubchainValidatorSetUpdateForChainTxExecutor(db, chain, state, consensus, valMgr, metachainWitness),
+		sendTxExec:                               NewSendTxExecutor(state),
+		smartContractTxExec:                      NewSmartContractTxExecutor(chain, state, ledger, valMgr),
+		skipSanityCheck:                          false,
 	}
 
 	return executor
@@ -187,6 +189,8 @@ func (exec *Executor) getTxExecutor(tx types.Tx) TxExecutor {
 		txExecutor = exec.coinbaseTxExec
 	case *stypes.SubchainValidatorSetUpdateTx:
 		txExecutor = exec.subchainValidatorSetUpdateTxExec
+	case *stypes.SubchainValidatorSetUpdateForChainTx:
+		txExecutor = exec.subchainValidatorSetUpdateForChainTxExec
 	case *types.SendTx:
 		txExecutor = exec.sendTxExec
 	case *types.SmartContractTx:
