@@ -27,8 +27,8 @@ var (
 )
 
 // InterChainEventIndexKey constructs the DB key for the given block hash.
-func InterChainEventIndexKey(sourceChainID *big.Int, icmeType score.InterChainMessageEventType, nonce *big.Int) common.Bytes {
-	return common.Bytes("ice/" + sourceChainID.String() + "/" + strconv.FormatUint(uint64(icmeType), 10) + "/" + nonce.String())
+func InterChainEventIndexKey(sourceChainID *big.Int, targetChainID *big.Int, icmeType score.InterChainMessageEventType, nonce *big.Int) common.Bytes {
+	return common.Bytes("ice/" + sourceChainID.String() + "/" + targetChainID.String() + "/" + strconv.FormatUint(uint64(icmeType), 10) + "/" + nonce.String())
 }
 
 type InterChainEventCache struct {
@@ -50,7 +50,7 @@ func (c *InterChainEventCache) Insert(event *score.InterChainMessageEvent) error
 	defer c.mutex.Unlock()
 
 	store := kvstore.NewKVStore(c.db)
-	err := store.Put(InterChainEventIndexKey(event.SourceChainID, event.Type, event.Nonce), event)
+	err := store.Put(InterChainEventIndexKey(event.SourceChainID, event.TargetChainID, event.Type, event.Nonce), event)
 	return err // the caller should handle the error
 }
 
@@ -63,7 +63,7 @@ func (c *InterChainEventCache) InsertList(events []*score.InterChainMessageEvent
 		if event.TargetChainID.Cmp(mainchainID) != 0 && event.TargetChainID.Cmp(localchainID) != 0 {
 			continue
 		}
-		err := store.Put(InterChainEventIndexKey(event.SourceChainID, event.Type, event.Nonce), event)
+		err := store.Put(InterChainEventIndexKey(event.SourceChainID, event.TargetChainID, event.Type, event.Nonce), event)
 		if err != nil {
 			return err // the caller should handle the error
 		}
@@ -71,32 +71,32 @@ func (c *InterChainEventCache) InsertList(events []*score.InterChainMessageEvent
 	return nil
 }
 
-func (c *InterChainEventCache) Delete(sourceChainID *big.Int, imceType score.InterChainMessageEventType, nonce *big.Int) error {
+func (c *InterChainEventCache) Delete(sourceChainID *big.Int, targetChainID *big.Int, imceType score.InterChainMessageEventType, nonce *big.Int) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	store := kvstore.NewKVStore(c.db)
-	err := store.Delete(InterChainEventIndexKey(sourceChainID, imceType, nonce))
+	err := store.Delete(InterChainEventIndexKey(sourceChainID, targetChainID, imceType, nonce))
 	return err // the caller should handle the error
 }
 
-func (c *InterChainEventCache) Get(sourceChainID *big.Int, imceType score.InterChainMessageEventType, nonce *big.Int) (*score.InterChainMessageEvent, error) {
+func (c *InterChainEventCache) Get(sourceChainID *big.Int, targetChainID *big.Int, imceType score.InterChainMessageEventType, nonce *big.Int) (*score.InterChainMessageEvent, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	event := score.InterChainMessageEvent{}
 	store := kvstore.NewKVStore(c.db)
-	err := store.Get(InterChainEventIndexKey(sourceChainID, imceType, nonce), &event)
+	err := store.Get(InterChainEventIndexKey(sourceChainID, targetChainID, imceType, nonce), &event)
 	return &event, err // the caller should handle the error
 }
 
-func (c *InterChainEventCache) Exists(sourceChainID *big.Int, imceType score.InterChainMessageEventType, nonce *big.Int) (bool, error) {
+func (c *InterChainEventCache) Exists(sourceChainID *big.Int, targetChainID *big.Int, imceType score.InterChainMessageEventType, nonce *big.Int) (bool, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	event := score.InterChainMessageEvent{}
 	store := kvstore.NewKVStore(c.db)
-	err := store.Get(InterChainEventIndexKey(sourceChainID, imceType, nonce), &event)
+	err := store.Get(InterChainEventIndexKey(sourceChainID, targetChainID, imceType, nonce), &event)
 	if err == nil {
 		return true, nil
 	}

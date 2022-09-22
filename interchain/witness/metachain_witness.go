@@ -156,8 +156,8 @@ func NewMetachainWitness(db database.Database, updateInterval int, interChainEve
 
 		wg: &sync.WaitGroup{},
 	}
-	if mw.subchainID.Cmp(big.NewInt(360888)) != 0 {
-		mw.interSubchainChannelWatchList = append(mw.interSubchainChannelWatchList, big.NewInt(360888))
+	if mw.subchainID.Cmp(big.NewInt(360777)) != 0 {
+		mw.interSubchainChannelWatchList = append(mw.interSubchainChannelWatchList, big.NewInt(360777))
 	}
 	return mw
 }

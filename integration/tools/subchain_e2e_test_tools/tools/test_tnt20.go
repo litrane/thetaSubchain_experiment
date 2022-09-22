@@ -382,3 +382,81 @@ func QueryTNT20(chainID int64, contractAddress, accountAddress string) {
 	fmt.Println("Account ", accountAddress, " TNT20 balance in ", contractAddress, " is ", balance)
 
 }
+func InterSubchainTNT20Lock(lockAmount *big.Int) {
+	// from 360777 to 360888
+	subchainClient, err := ethclient.Dial("http://localhost:19888/rpc")
+	if err != nil {
+		log.Fatal(err)
+	}
+	targetSubchainClient, err := ethclient.Dial("http://localhost:19988/rpc")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Preparing for TNT20 inter-subchain cross-chain transfer...\n")
+
+	subchainTNT20Address := common.HexToAddress("0x5C3159dDD2fe0F9862bC7b7D60C1875fa8F81337")
+
+	sender := accountList[1].fromAddress
+	receiver := accountList[1].fromAddress
+	subchainTNT20TokenBankInstance, _ := ct.NewTNT20TokenBank(subchainTNT20TokenBankAddress, subchainClient)
+	subchainTNT20Instance, _ := ct.NewMockTNT20(subchainTNT20Address, subchainClient)
+
+	mintAmount := big.NewInt(1).Mul(big.NewInt(5), lockAmount)
+	fmt.Printf("Minting %v TNT20 tokens\n", mintAmount)
+
+	authUser := subchainSelectAccount(subchainClient, 1)
+	subchainTNT20Instance.Mint(authUser, sender, mintAmount)
+	time.Sleep(6 * time.Second)
+
+	senderTNT20Balance, _ := subchainTNT20Instance.BalanceOf(nil, sender)
+	subchainTNT20Name, _ := subchainTNT20Instance.Name(nil)
+	subchainTNT20Symbol, _ := subchainTNT20Instance.Symbol(nil)
+	subchainTNT20Decimals, _ := subchainTNT20Instance.Decimals(nil)
+
+	fmt.Printf("Subchain TNT20 contract address: %v, Name: %v, Symbol: %v, Decimals: %v\n", subchainTNT20Address, subchainTNT20Name, subchainTNT20Symbol, subchainTNT20Decimals)
+	fmt.Printf("360777 sender   : %v, TNT20 balance on 360777         : %v\n", sender, senderTNT20Balance)
+
+	authUser = subchainSelectAccount(subchainClient, 1)
+	subchainTNT20Instance.Approve(authUser, subchainTNT20TokenBankAddress, lockAmount)
+
+	authUser = subchainSelectAccount(subchainClient, 1)
+	authUser.Value.Set(crossChainFee)
+	lockTx, err := subchainTNT20TokenBankInstance.LockTokens(authUser, big.NewInt(360888), subchainTNT20Address, accountList[1].fromAddress, lockAmount)
+	authUser.Value.Set(common.Big0)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("TNT20 Token Lock tx hash (Subchain): %v\n", lockTx.Hash().Hex())
+	fmt.Printf("Transfering %v TNT20 tokens (Wei) from to Subchain 360777 to the 360888...\n\n", lockAmount)
+
+	fmt.Printf("Start transfer, timestamp      : %v\n", time.Now())
+	receipt, err := subchainClient.TransactionReceipt(context.Background(), lockTx.Hash())
+	if err != nil {
+		log.Fatal(err)
+	}
+	if receipt.Status != 1 {
+		log.Fatal("lock error")
+	}
+	fmt.Printf("Token lock confirmed, timestamp: %v\n", time.Now())
+	fromHeight, _ := targetSubchainClient.BlockNumber(context.Background())
+	var subchainVoucherAddress common.Address
+	for {
+		time.Sleep(1 * time.Second)
+		toHeight, _ := targetSubchainClient.BlockNumber(context.Background())
+		result := getSubchain360888TNT20VoucherMintLogs(int(fromHeight), int(toHeight), subchainTNT20TokenBankAddress, receiver)
+		if result != nil {
+			subchainVoucherAddress = *result
+			break
+		}
+		fmt.Printf("waiting for cross-chain transfer completion (scanning Subchain 360888 from height %v to %v)...\n", fromHeight, toHeight)
+	}
+	fmt.Printf("End transfer, timestamp        : %v\n", time.Now())
+	fmt.Printf("Cross-chain transfer completed.\n\n")
+
+	senderTNT20Balance, _ = subchainTNT20Instance.BalanceOf(nil, sender)
+	instanceSubchainTNT20VoucherContract, _ := ct.NewTNT20VoucherContract(subchainVoucherAddress, targetSubchainClient)
+	receiverSubchainTNT20VoucherBalance, _ := instanceSubchainTNT20VoucherContract.BalanceOf(nil, receiver)
+	fmt.Printf("360777 sender : %v, TNT20 balance on 360777       : %v\n", sender, senderTNT20Balance)
+	fmt.Printf("360888 receiver: %v, TNT20 voucher balance on 360888: %v\n\n", receiver, receiverSubchainTNT20VoucherBalance)
+}

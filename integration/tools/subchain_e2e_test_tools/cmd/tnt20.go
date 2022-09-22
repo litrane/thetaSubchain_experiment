@@ -60,12 +60,27 @@ var starTNT20QueryCmd = &cobra.Command{
 	},
 }
 
+var startInterchainTNT20LockCmd = &cobra.Command{
+	Use: "InterSubchainTNT20Lock",
+	Run: func(cmd *cobra.Command, args []string) {
+		amountInt, success := big.NewInt(0).SetString(amount, 10)
+		if !success {
+			panic(fmt.Sprintf("Failed to read amount: %v", amount))
+		}
+		tools.InterSubchainTNT20Lock(amountInt)
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(startMainchainTNT20LockCmd)
 	rootCmd.AddCommand(startSubchainTNT20LockCmd)
 	rootCmd.AddCommand(startSubchainTNT20BurnCmd)
 	rootCmd.AddCommand(startMainchainTNT20BurnCmd)
 	rootCmd.AddCommand(starTNT20QueryCmd)
+
+	rootCmd.AddCommand(startInterchainTNT20LockCmd)
+
+	startInterchainTNT20LockCmd.PersistentFlags().StringVar(&amount, "amount", "10", "amount")
 
 	// startMainchainTNT20LockCmd.PersistentFlags().StringVar(&amount, "amount", "10", "amount")
 	// startSubchainTNT20LockCmd.PersistentFlags().StringVar(&amount, "amount", "10", "amount")
