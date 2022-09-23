@@ -237,7 +237,7 @@ func (oc *Orchestrator) mainloop(ctx context.Context) {
 			// Handle subchain channel events
 			oc.processNextSubchainRegisterEvent()
 			for chainIDString := range oc.interSubchainChannels {
-				targetChainID, success := common.Big0.SetString(chainIDString, 10)
+				targetChainID, success := big.NewInt(0).SetString(chainIDString, 10)
 				if !success {
 					logger.Fatalf("failed to convert the target chain ID")
 				}

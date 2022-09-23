@@ -268,6 +268,38 @@ func subchainSelectAccount(client *ethclient.Client, id int) *bind.TransactOpts 
 	return auth
 }
 
+func subchainSelectAccountForchain(client *ethclient.Client, id int, chainid int64) *bind.TransactOpts {
+	time.Sleep(1 * time.Second)
+	// chainID, err := client.ChainID(context.Background())
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	chainID := big.NewInt(chainid)
+	fromAddress := accountList[id].fromAddress
+	privateKey := accountList[id].privateKey
+	nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	gasPrice, err := client.SuggestGasPrice(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	auth, err := bind.NewKeyedTransactorWithChainID(crypto.ECDSAToPrivKey(privateKey), chainID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	auth.Nonce = big.NewInt(int64(nonce))
+	auth.Value = big.NewInt(0)
+	// auth.Value = big.NewInt(20000000000000000000) // in wei
+	auth.GasLimit = uint64(3000000) // in units
+	auth.GasPrice = gasPrice
+
+	return auth
+}
+
 func OneAccountRegister(selected_subchainID *big.Int) {
 	client, err := ethclient.Dial("http://localhost:18888/rpc")
 	if err != nil {
