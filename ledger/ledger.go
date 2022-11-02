@@ -254,6 +254,24 @@ func (ledger *Ledger) ScreenTx(rawTx common.Bytes) (txInfo *score.TxInfo, res re
 	return txInfo, res
 }
 
+func (ledger *Ledger) GetTxInfo(rawTx common.Bytes) (txInfo *score.TxInfo, res result.Result) {
+	var tx types.Tx
+	tx, err := stypes.TxFromBytes(rawTx)
+	if err != nil {
+		return nil, result.Error("Error decoding tx: %v", err)
+	}
+
+	ledger.mu.RLock()
+	defer ledger.mu.RUnlock()
+
+	txInfo, res = ledger.executor.GetTxInfo(tx)
+	if res.IsError() {
+		return nil, res
+	}
+
+	return txInfo, res
+}
+
 // ProposeBlockTxs collects and executes a list of transactions, which will be used to assemble the next blockl
 // It also clears these transactions from the mempool.
 func (ledger *Ledger) ProposeBlockTxs(block *score.Block, validatorMajorityInTheSameDynasty bool) (stateRootHash common.Hash, blockRawTxs []common.Bytes, res result.Result) {
@@ -303,7 +321,7 @@ func (ledger *Ledger) ProposeBlockTxs(block *score.Block, validatorMajorityInThe
 		if res.IsError() {
 			logger.Errorf("Transaction check failed: errMsg = %v, tx = %v", res.Message, tx)
 			continue
-		}
+		} //gai
 		blockRawTxs = append(blockRawTxs, rawTxCandidate)
 	}
 
@@ -398,7 +416,7 @@ func (ledger *Ledger) ApplyBlockTxs(block *score.Block) result.Result {
 		ledger.mempool.Lock()
 		defer ledger.mempool.Unlock()
 
-		ledger.mempool.UpdateUnsafe(blockRawTxs) // clear txs from the mempool
+		ledger.mempool.UpdateUnsafe(blockRawTxs) // clear txs from the mempool //gai
 	}()
 
 	logger.Debugf("ApplyBlockTxs: Cleared mempool transactions, block.height = %v", block.Height)

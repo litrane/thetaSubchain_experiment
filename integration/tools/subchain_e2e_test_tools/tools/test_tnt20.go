@@ -45,14 +45,14 @@ func MainchainTNT20Lock(lockAmount *big.Int) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	mintAmount := big.NewInt(1).Mul(lockAmount, big.NewInt(10))
+	mintAmount := big.NewInt(1).Mul(lockAmount, big.NewInt(99999999999999))
 	fmt.Printf("Mainchain TNT20 contract address: %v, Name: %v, Symbol: %v, Decimals: %v\n", tnt20ContractAddress, mainchainTNT20Name, mainchainTNT20Symbol, mainchainTNT20Decimals)
 	fmt.Printf("Minting %v TNT20 tokens (Wei) on the Mainchain to address %v\n", mintAmount, sender.From)
 	_, err = instaceTNT20Contract.Mint(mainchainSelectAccount(mainchainClient, 0), sender.From, mintAmount)
 	if err != nil {
 		log.Fatal(err)
 	}
-	_, err = instaceTNT20Contract.Approve(sender, mainchainTNT20TokenBankAddress, lockAmount)
+	_, err = instaceTNT20Contract.Approve(sender, mainchainTNT20TokenBankAddress, mintAmount)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func MainchainTNT20Lock(lockAmount *big.Int) {
 	receiverTNT20VoucherBalance, _ := instaceSubchainTNT20VoucherContract.BalanceOf(nil, receiver)
 	fmt.Printf("Mainchain sender : %v, TNT20 balance on Mainchain       : %v\n", sender.From, senderTNT20Balance)
 	fmt.Printf("Subchain receiver: %v, TNT20 voucher balance on Subchain: %v\n\n", receiver, receiverTNT20VoucherBalance)
-
+	return
 	sender = mainchainSelectAccount(mainchainClient, 1)
 	sender.Value.Set(crossChainFee)
 	lockTx, err := instanceTNT20TokenBank.LockTokens(sender, subchainID, tnt20ContractAddress, receiver, lockAmount)
@@ -405,6 +405,7 @@ func InterSubchainTNT20Lock(lockAmount *big.Int) {
 	mintAmount := big.NewInt(1).Mul(big.NewInt(5), lockAmount)
 	fmt.Printf("Minting %v TNT20 tokens\n", mintAmount)
 
+	mintAmount = big.NewInt(9999999999)
 	authUser := subchainSelectAccount(subchainClient, 1)
 	subchainTNT20Instance.Mint(authUser, sender, mintAmount)
 	time.Sleep(6 * time.Second)
@@ -418,9 +419,11 @@ func InterSubchainTNT20Lock(lockAmount *big.Int) {
 	fmt.Printf("360777 sender   : %v, TNT20 balance on 360777         : %v\n", sender, senderTNT20Balance)
 
 	authUser = subchainSelectAccount(subchainClient, 1)
-	subchainTNT20Instance.Approve(authUser, subchainTNT20TokenBankAddress, lockAmount)
+	subchainTNT20Instance.Approve(authUser, subchainTNT20TokenBankAddress, big.NewInt(100))
 
 	authUser = subchainSelectAccount(subchainClient, 1)
+	fmt.Println(subchainTNT20Instance.Allowance(nil, accountList[1].fromAddress, subchainTNT20TokenBankAddress))
+	fmt.Println(subchainTNT20TokenBankAddress)
 	authUser.Value.Set(crossChainFee)
 	lockTx, err := subchainTNT20TokenBankInstance.LockTokens(authUser, big.NewInt(360888), subchainTNT20Address, accountList[1].fromAddress, lockAmount)
 	authUser.Value.Set(common.Big0)

@@ -42,4 +42,5 @@ type Ledger interface {
 	PruneState(endHeight uint64) error
 	GetTokenBankContractAddress(tokenType CrossChainTokenType) *common.Address
 	GetSubchainRegisterContractAddress() *common.Address
+	GetTxInfo(rawTx common.Bytes) (*TxInfo, result.Result)
 }
