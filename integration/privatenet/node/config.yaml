@@ -1,6 +1,6 @@
 # Theta configuration
 genesis:
-  hash: "0x049efb0e1cc8bcf714a714d84c7fdce685c0cb2e9c01bea16b97c3dbdd524351"
+  hash: "0x04f67ac89ab30fddc3b8772ecaaaf012d8ae7bddbceb0c48ae6d68e99351aba5"
 p2p:
   port: 12100
 rpc:
@@ -17,6 +17,7 @@ subchain:
   mainchainTFuelTB: "0x7f1C87Bd3a22159b8a2E5D195B1a3283D10ea895"
   mainchainTNT20TB: "0x2Ce636d6240f8955d085a896e12429f8B3c7db26"
   mainchainTNT721TB: "0xEd8d61f42dC1E56aE992D333A4992C3796b22A74"
+  mockTNT20: "0x47c5e40890bcE4a473A49D7501808b9633F29782"
   updateInterval: 3000
   #chainID: 360777
 
