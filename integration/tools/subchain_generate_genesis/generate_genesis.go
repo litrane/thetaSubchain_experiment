@@ -31,6 +31,7 @@ import (
 )
 
 var logger *log.Entry = log.WithFields(log.Fields{"prefix": "genesis"})
+var sequence = 0
 
 const (
 	GenBlockHashMode int = iota
@@ -111,6 +112,7 @@ func generateGenesisSnapshot(mainchainID, subchainID, initValidatorSetFilePath, 
 
 	setInitialValidatorSet(subchainID, initValidatorSetFilePath, genesisHeight, sv)
 	deployInitialSmartContracts(mainchainID, subchainID, feeSetter, sv)
+	mintMockERC20(subchainID, initValidatorSetFilePath, sv)
 
 	stateHash := sv.Hash()
 
@@ -160,8 +162,12 @@ func setInitialValidatorSet(subchainID string, initValidatorSetFilePath string, 
 		}
 		validator := score.NewValidator(v.Address, stake)
 		validatorSet.AddValidator(validator)
-
-		setInitialBalance(sv, common.HexToAddress(v.Address), common.Big0) // need to create accounts with zero balances for the inital validators
+		balance, success := new(big.Int).SetString("100000000000000000000000", 10)
+		if !success {
+			panic("failed to set initial balance")
+		}
+		realAddress := "0x" + v.Address
+		setInitialBalance(sv, common.HexToAddress(realAddress), balance) // need to create accounts with zero balances for the inital validators
 	}
 	subchainIDInt := scom.MapChainID(subchainID)
 	sv.UpdateValidatorSet(subchainIDInt, validatorSet)
@@ -202,7 +208,6 @@ func deployInitialSmartContracts(mainchainID, subchainID string, feeSetter commo
 	// Deploy the ChainRegistrar contract
 	//
 
-	sequence := 0
 	numMainchainBlockPerDynastyBigInt := big.NewInt(scom.NumMainchainBlocksPerDynasty)
 	dec18, _ := big.NewInt(0).SetString("1000000000000000000", 10)
 	initialCrossChainFee := big.NewInt(0).Mul(big.NewInt(10), dec18)
@@ -228,6 +233,12 @@ func deployInitialSmartContracts(mainchainID, subchainID string, feeSetter commo
 	_, err = deploySmartContract(subchainID, sv, addConstructorArgumentForTokenBankBytecode(predeployed.TNT721TokenBankContractBytecode, mainchainIDInt, chainRegistrarContractAddr), deployer, sequence, slst.TNT721TokenBankContractAddressKey())
 	if err != nil {
 		logger.Panicf("Failed to deploy TokenBank smart contract (sequence = %v): %v", sequence, err)
+	}
+
+	sequence += 1
+	_, err = deploySmartContract(subchainID, sv, predeployed.MockTNT20Bytecode, deployer, sequence, slst.MockERC20ContractAddressKey())
+	if err != nil {
+		logger.Panicf("Failed to deploy MockERC20 smart contract (sequence = %v): %v", sequence, err)
 	}
 }
 
@@ -331,6 +342,64 @@ func deploySmartContract(subchainID string, sv *slst.StoreView, contractBytecode
 	sv.Set(contractAddressKey, tbcaBytes)
 
 	return contractAddr, nil
+}
+
+func mintMockERC20(subchainID string, initValidatorSetFilePath string, sv *slst.StoreView) error {
+	dummyGasLimit := uint64(10000000)
+	dummyGasPrice := big.NewInt(1)
+	deployer := common.Address{}
+	mockTNT20ContractAddr := sv.GetMockTNT20ContractAddress().Hex()
+
+	var validators []Validator
+	initValidatorSetFile, err := os.Open(initValidatorSetFilePath)
+	if err != nil {
+		panic(fmt.Sprintf("failed to open initial stake deposit file: %v", err))
+	}
+	initValidatorSetByteValue, err := ioutil.ReadAll(initValidatorSetFile)
+	if err != nil {
+		panic(fmt.Sprintf("failed to read initial stake deposit file: %v", err))
+	}
+
+	json.Unmarshal(initValidatorSetByteValue, &validators)
+
+	for _, v := range validators {
+		sequence += 1
+		calldata, err := hex.DecodeString("40c10f19000000000000000000000000" + v.Address + "000000000000000000000000000000000000000000084595161401484a000000")
+		if err != nil {
+			return err
+		}
+		mintSCTx := types.SmartContractTx{
+			From:     types.NewTxInput(deployer, types.NewCoins(0, 0), sequence),
+			To:       types.TxOutput{Address: common.HexToAddress(mockTNT20ContractAddr)},
+			GasLimit: dummyGasLimit,
+			GasPrice: dummyGasPrice,
+			Data:     common.Bytes(calldata),
+		}
+		parentBlockInfo := svm.NewBlockInfo(0, big.NewInt(0), subchainID)
+		_, _, _, evmErr := svm.Execute(parentBlockInfo, &mintSCTx, sv)
+		if evmErr != nil {
+			return evmErr
+		}
+		// fmt.Println(evmRet.String())
+		// the sequnce number is 0, as the caller is the validator
+		approveCalldata, err := hex.DecodeString("095ea7b300000000000000000000000047e9fbef8c83a1714f1951f142132e6e90f5fa5d000000000000000000000000000000000000000000084595161401484a000000")
+		if err != nil {
+			return err
+		}
+		allowanceSCTx := types.SmartContractTx{
+			From:     types.NewTxInput(common.HexToAddress("0x"+v.Address), types.NewCoins(0, 0), 0),
+			To:       types.TxOutput{Address: common.HexToAddress(mockTNT20ContractAddr)},
+			GasLimit: dummyGasLimit,
+			GasPrice: dummyGasPrice,
+			Data:     common.Bytes(approveCalldata),
+		}
+		_, _, _, evmErr = svm.Execute(parentBlockInfo, &allowanceSCTx, sv)
+		if evmErr != nil {
+			return evmErr
+		}
+		// fmt.Println(evmRet.String())
+	}
+	return nil
 }
 
 // writeGenesisSnapshot writes genesis snapshot to file system.
@@ -447,6 +516,11 @@ func sanityChecks(sv *slst.StoreView) error {
 		panic("TNT721 token bank contract is not set")
 	}
 	logger.Infof("TNT721Token Bank Contract Address: %v", tnt721TokenBankContractAddr.Hex())
+	mockTNT20ContractAddr := sv.GetMockTNT20ContractAddress()
+	if mockTNT20ContractAddr == nil {
+		panic("Mock TNT20 contract is not set")
+	}
+	logger.Infof("Mock TNT20  Address: %v", mockTNT20ContractAddr.Hex())
 
 	// Sanity checks for the initial validator set
 	vsProof, err := proveValidatorSet(sv)

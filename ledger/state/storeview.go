@@ -432,6 +432,21 @@ func (sv *StoreView) GetTNT721TokenBankContractAddress() *common.Address {
 	return tbca
 }
 
+// GetMockTNT20ContractAddress gets the Mock TNT20 contract address.
+func (sv *StoreView) GetMockTNT20ContractAddress() *common.Address {
+	data := sv.Get(MockERC20ContractAddressKey())
+	if len(data) == 0 {
+		return nil
+	}
+	tbca := &common.Address{}
+	err := types.FromBytes(data, tbca)
+	if err != nil {
+		log.Panicf("Error reading Mock TNT20 contract address %X, error: %v",
+			data, err.Error())
+	}
+	return tbca
+}
+
 // GetValidatorSetUpdateTxHeightList gets the heights of blocks that contain stake related transactions
 func (sv *StoreView) GetValidatorSetUpdateTxHeightList() *types.HeightList {
 	data := sv.Get(ValidatorSetUpdateTxHeightListKey())

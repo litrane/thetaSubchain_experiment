@@ -112,3 +112,9 @@ func TNT20TokenBankContractAddressKey() common.Bytes {
 func TNT721TokenBankContractAddressKey() common.Bytes {
 	return common.Bytes("ls/tbca/tnt721")
 }
+
+// MockERC20ContractAddressKey returns the key for looking up the address of the
+// MockERC20 contract deployed in the genesis block
+func MockERC20ContractAddressKey() common.Bytes {
+	return common.Bytes("ls/tbca/m20")
+}
