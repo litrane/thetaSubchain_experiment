@@ -43,10 +43,28 @@ var deploySubchainMockTokensCmd = &cobra.Command{
 	},
 }
 
+var DSNRegisterCmd = &cobra.Command{
+	Use:   "DSNRegister",
+	Short: "register all subchains used in DSN",
+	Run: func(cmd *cobra.Command, args []string) {
+		tools.DSNRegister()
+	},
+}
+
+var DSNStakeCmd = &cobra.Command{
+	Use:   "DSNStake",
+	Short: "stake all validators used in DSN",
+	Run: func(cmd *cobra.Command, args []string) {
+		tools.DSNStake()
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(startOneAccountRegisterCmd)
 	rootCmd.AddCommand(startOneAccountStakeCmd)
 	rootCmd.AddCommand(deploySubchainMockTokensCmd)
+	rootCmd.AddCommand(DSNRegisterCmd)
+	rootCmd.AddCommand(DSNStakeCmd)
 	startOneAccountStakeCmd.PersistentFlags().IntVar(&accountID, "accountID", 1, "accountID")
 	startOneAccountStakeCmd.PersistentFlags().StringVar(&validatorAddrStr, "validator", "0x2E833968E5bB786Ae419c4d13189fB081Cc43bab", "validator")
 	startOneAccountStakeCmd.PersistentFlags().StringVar(&subchainID, "subchainID", "360777", "subchainID")

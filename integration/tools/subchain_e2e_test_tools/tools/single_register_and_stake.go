@@ -150,7 +150,6 @@ func deployMockTNT1155(ethClient *ethclient.Client) common.Address {
 
 func init() {
 	subchainID = big.NewInt(360777)
-
 	wthetaAddress = common.HexToAddress("0x7d73424a8256C0b2BA245e5d5a3De8820E45F390")
 	registrarOnMainchainAddress = common.HexToAddress("0x08425D9Df219f93d5763c3e85204cb5B4cE33aAa")
 	governanceTokenAddress = common.HexToAddress("0x6E05f58eEddA592f34DD9105b1827f252c509De0")
@@ -357,6 +356,377 @@ func OneAccountRegister(selected_subchainID *big.Int) {
 	fmt.Printf("Subchain registered, all subchain IDs: %v\n", allChainIDs)
 }
 
+func DSNRegister() {
+	DSNsubchains := [...]*big.Int{big.NewInt(360001), big.NewInt(360777)}
+	client, err := ethclient.Dial("http://localhost:18888/rpc")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	chainGuarantor := accountList[7].fromAddress
+
+	instanceWrappedTheta, err := ct.NewMockWrappedTheta(wthetaAddress, client)
+	if err != nil {
+		log.Fatal("Failed to instantiate the wTHETA contract", err)
+	}
+	instanceChainRegistrar, err := ct.NewChainRegistrarOnMainchain(registrarOnMainchainAddress, client)
+	if err != nil {
+		log.Fatal("Failed to instantiate the ChainRegistrar contract", err)
+	}
+	var dec18 = new(big.Int)
+	dec18.SetString("1000000000000000000", 10)
+	amount := new(big.Int).Mul(dec18, big.NewInt(2000000000000))
+
+	auth := mainchainSelectAccount(client, 7) //chainGuarantor
+	_, err = instanceWrappedTheta.Mint(auth, chainGuarantor, amount)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// fmt.Println("Mint wTHETA tx hash (Mainchain):", tx.Hash().Hex())
+	approveAmount := new(big.Int).Mul(dec18, big.NewInt(50000))
+	authchainGuarantor := mainchainSelectAccount(client, 7)
+	wThetaBalanceOfGuarantor, err := instanceWrappedTheta.BalanceOf(nil, chainGuarantor)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("wTheta balance of %v: %v\n", chainGuarantor.Hex(), wThetaBalanceOfGuarantor)
+
+	_, err = instanceWrappedTheta.Approve(authchainGuarantor, registrarOnMainchainAddress, approveAmount)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// fmt.Println("Approve wTHETA tx hash (Mainchain):", tx.Hash().Hex())
+
+	allChainIDs, _ := instanceChainRegistrar.GetAllSubchainIDs(nil)
+	fmt.Printf("All subchain IDs before subchain registration: %v\n", allChainIDs)
+	for _, sid := range DSNsubchains {
+		fmt.Printf("Registering subchain %v\n", sid.String())
+		collateralAmount := new(big.Int).Mul(dec18, big.NewInt(10001))
+		authchainGuarantor = mainchainSelectAccount(client, 7)
+		dummyGenesisHash := "0x012345679abcdef"
+		tx, err := instanceChainRegistrar.RegisterSubchain(authchainGuarantor, sid, governanceTokenAddress, collateralAmount, dummyGenesisHash)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("Register Subchain tx hash (Mainchain):", tx.Hash().Hex())
+		time.Sleep(1 * time.Second)
+	}
+	time.Sleep(12 * time.Second)
+	allChainIDs, _ = instanceChainRegistrar.GetAllSubchainIDs(nil)
+	fmt.Printf("Subchain registered, all subchain IDs: %v\n", allChainIDs)
+}
+
+func prepareDSNMappings() map[string][]string {
+	res := make(map[string][]string)
+	//360001
+	vs360001 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+	res[big.NewInt(360001).String()] = vs360001[:]
+
+	/*
+		//360002
+		vs360002 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+		res[big.NewInt(360002).String()] = vs360002[:]
+
+		//360003
+		vs360003 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+		res[big.NewInt(360003).String()] = vs360003[:]
+
+		//360004
+		vs360004 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+		res[big.NewInt(360004).String()] = vs360004[:]
+
+		//360005
+		vs360005 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+		res[big.NewInt(360005).String()] = vs360005[:]
+
+		//360006
+		vs360006 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+		res[big.NewInt(360006).String()] = vs360006[:]
+
+		//360007
+		vs360007 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+		res[big.NewInt(360007).String()] = vs360007[:]
+	*/
+
+	//360777
+	vs360777 := [...]string{"9f1233798e905e173560071255140b4a8abd3ec6", "33a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "9f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+	res[big.NewInt(360777).String()] = vs360777[:]
+	return res
+}
+
+/*
+func DSNStake() {
+	validatorsInSubchains := prepareDSNMappings()
+
+	client, err := ethclient.Dial("http://localhost:18888/rpc")
+	if err != nil {
+		log.Fatal(err)
+	}
+	var dec18 = new(big.Int)
+	dec18.SetString("1000000000000000000", 10)
+	instanceWrappedTheta, err := ct.NewMockWrappedTheta(wthetaAddress, client)
+	if err != nil {
+		log.Fatal(err)
+	}
+	instanceGovernanceToken, err := ct.NewSubchainGovernanceToken(governanceTokenAddress, client)
+	if err != nil {
+		log.Fatal(err)
+	}
+	instanceChainRegistrar, err := ct.NewChainRegistrarOnMainchain(registrarOnMainchainAddress, client)
+	if err != nil {
+		log.Fatal(err)
+	}
+	validatorCollateralManagerAddr, _ := instanceChainRegistrar.Vcm(nil)
+	validatorStakeManagerAddr, _ := instanceChainRegistrar.Vsm(nil)
+
+	//
+	// The guarantor deposits wTHETA collateral for the validator
+	//
+
+	fmt.Println("Prepare for validator collateral deposit...")
+
+	validatorCollateral := new(big.Int).Mul(dec18, big.NewInt(2000))
+	guarantor := mainchainSelectAccount(client, 1)
+	tx, err := instanceWrappedTheta.Mint(guarantor, guarantor.From, new(big.Int).Mul(dec18, big.NewInt(200000000000000000)))
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Collateral mint tx hash (Mainchain): %v\n", tx.Hash().Hex())
+	guarantor = mainchainSelectAccount(client, 1)
+	tx, err = instanceWrappedTheta.Approve(guarantor, validatorCollateralManagerAddr, new(big.Int).Mul(dec18, big.NewInt(200000000000000000)))
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Collateral approve tx hash (Mainchain): %v\n", tx.Hash().Hex())
+
+	for sid, addrs := range validatorsInSubchains {
+		for _, addr := range addrs {
+			guarantor = mainchainSelectAccount(client, 1)
+			validator := common.HexToAddress(addr)
+			bisid, ok := new(big.Int).SetString(sid, 10)
+			if !ok {
+				log.Fatal("Failed to parse bisid: %v")
+			}
+			tx, err = instanceChainRegistrar.DepositCollateral(guarantor, bisid, validator, validatorCollateral)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("Collateral deposit tx hash (Mainchain): %v to address %v\n", tx.Hash().Hex(), validator.String())
+			time.Sleep(1 * time.Second)
+		}
+	}
+	time.Sleep(6 * time.Second)
+
+	//
+	// The staker deposits Gov token stakes for the validator
+	//
+	fmt.Println("Prepare for validator stake deposit...")
+	staker := mainchainSelectAccount(client, 1)
+	validatorStakingAmount := new(big.Int).Mul(dec18, big.NewInt(100000))
+	validatorStakingAmountMint := new(big.Int).Mul(dec18, big.NewInt(10))
+	// validatorStakingAmountMint.Mul(validatorStakingAmount, big.NewInt(10000000))
+	authGovTokenInitDistrWallet := mainchainSelectAccount(client, 6)
+	tx, err = instanceGovernanceToken.Transfer(authGovTokenInitDistrWallet, staker.From, validatorStakingAmountMint)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Stake transfer tx hash (Mainchain): %v\n", tx.Hash().Hex())
+	time.Sleep(6 * time.Second)
+
+	staker = mainchainSelectAccount(client, 1)
+	tx, err = instanceGovernanceToken.Approve(staker, validatorStakeManagerAddr, validatorStakingAmountMint)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Stake approve tx hash (Mainchain): %v\n", tx.Hash().Hex())
+	time.Sleep(12 * time.Second)
+
+	minInitFeeRequired := new(big.Int).Mul(dec18, big.NewInt(100000)) // 100,000 TFuel
+	for sid, addrs := range validatorsInSubchains {
+		for _, addr := range addrs {
+			staker = mainchainSelectAccount(client, 1)
+			staker.Value.Set(minInitFeeRequired)
+			validator := common.HexToAddress(addr)
+			tx, err := instanceChainRegistrar.DepositStake(staker, sid, validator, validatorStakingAmount)
+			staker.Value.Set(common.Big0)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("Deposit %v Wei Gov Tokens as stake to subchain %v validator %v\n", validatorStakingAmount, sid, validator)
+			fmt.Printf("Stake deposit tx hash (Mainchain): %v\n", tx.Hash().Hex())
+			time.Sleep(1 * time.Second)
+		}
+		// time.Sleep(12 * time.Second)
+		mainchainHeight, _ := client.BlockNumber(context.Background())
+		dynasty := scom.CalculateDynasty(big.NewInt(int64(mainchainHeight)))
+		fmt.Printf("Maichain block height: %v, dynasty: %v\n", mainchainHeight, dynasty)
+
+		valset, _ := instanceChainRegistrar.GetValidatorSet(nil, sid, dynasty)
+		fmt.Printf("Validator Set for subchain %v during the current dynasty %v: %v\n", sid, dynasty, valset)
+		nextDynasty := big.NewInt(0).Add(dynasty, big.NewInt(1))
+		valsetNext, _ := instanceChainRegistrar.GetValidatorSet(nil, sid, nextDynasty)
+		fmt.Printf("Validator Set for subchain %v during the next dynasty    %v: %v\n", sid, nextDynasty, valsetNext)
+	}
+
+}
+*/
+func DSNStake() {
+	id := 1
+	validatorsInSubchains := prepareDSNMappings()
+	// validator := common.HexToAddress(validatorAddrStr)
+	validator := common.Address{}
+	client, err := ethclient.Dial("http://localhost:18888/rpc")
+	if err != nil {
+		log.Fatal(err)
+	}
+	var dec18 = new(big.Int)
+	dec18.SetString("1000000000000000000", 10)
+	instanceWrappedTheta, err := ct.NewMockWrappedTheta(wthetaAddress, client)
+	if err != nil {
+		log.Fatal(err)
+	}
+	instanceGovernanceToken, err := ct.NewSubchainGovernanceToken(governanceTokenAddress, client)
+	if err != nil {
+		log.Fatal(err)
+	}
+	instanceChainRegistrar, err := ct.NewChainRegistrarOnMainchain(registrarOnMainchainAddress, client)
+	if err != nil {
+		log.Fatal(err)
+	}
+	validatorCollateralManagerAddr, _ := instanceChainRegistrar.Vcm(nil)
+	validatorStakeManagerAddr, _ := instanceChainRegistrar.Vsm(nil)
+
+	//
+	// The guarantor deposits wTHETA collateral for the validator
+	//
+
+	fmt.Println("Prepare for validator collateral deposit...")
+	validatorCollateral := new(big.Int).Mul(dec18, big.NewInt(2000))
+	guarantor := mainchainSelectAccount(client, 1)
+	tx, err := instanceWrappedTheta.Mint(guarantor, guarantor.From, new(big.Int).Mul(dec18, big.NewInt(200000000000000000)))
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Collateral mint tx hash (Mainchain): %v\n", tx.Hash().Hex())
+	guarantor = mainchainSelectAccount(client, 1)
+	tx, err = instanceWrappedTheta.Approve(guarantor, validatorCollateralManagerAddr, new(big.Int).Mul(dec18, big.NewInt(200000000000000000)))
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Collateral approve tx hash (Mainchain): %v\n", tx.Hash().Hex())
+
+	for sid, addrs := range validatorsInSubchains {
+		for _, addr := range addrs {
+			guarantor = mainchainSelectAccount(client, 1)
+			validator := common.HexToAddress(addr)
+			bisid, ok := new(big.Int).SetString(sid, 10)
+			if !ok {
+				log.Fatal("Failed to parse bisid: %v")
+			}
+			tx, err = instanceChainRegistrar.DepositCollateral(guarantor, bisid, validator, validatorCollateral)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("Collateral deposit tx hash (Mainchain): %v to address %v\n", tx.Hash().Hex(), validator.String())
+			time.Sleep(1 * time.Second)
+		}
+	}
+	/*
+		validatorCollateral := new(big.Int).Mul(dec18, big.NewInt(2000))
+		guarantor := mainchainSelectAccount(client, id)
+		tx, err := instanceWrappedTheta.Mint(guarantor, guarantor.From, big.NewInt(200000000000000000))
+		if err != nil {
+			log.Fatal(err)
+		}
+		guarantor = mainchainSelectAccount(client, id)
+		tx, err = instanceWrappedTheta.Approve(guarantor, validatorCollateralManagerAddr, big.NewInt(200000000000000000))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for sid, addrs := range validatorsInSubchains {
+			for _, addr := range addrs {
+				guarantor = mainchainSelectAccount(client, id)
+				validator = common.HexToAddress(addr)
+				selected_subchainID, ok := new(big.Int).SetString(sid, 10)
+				if !ok {
+					log.Fatal("Failed to parse bisid")
+				}
+				tx, err = instanceChainRegistrar.DepositCollateral(guarantor, selected_subchainID, validator, validatorCollateral)
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Printf("Collateral deposit tx hash (Mainchain): %v to address %v on chain %v\n", tx.Hash().Hex(), validator.String(), selected_subchainID)
+				time.Sleep(1 * time.Second)
+			}
+		}
+	*/
+
+	fmt.Println("Prepare for validator stake deposit...")
+
+	//
+	// The staker deposits Gov token stakes for the validator
+	//
+
+	staker := mainchainSelectAccount(client, id)
+	validatorStakingAmount := new(big.Int).Mul(dec18, big.NewInt(100000))
+	validatorStakingAmountMint := new(big.Int)
+	validatorStakingAmountMint.Mul(validatorStakingAmount, big.NewInt(10))
+
+	authGovTokenInitDistrWallet := mainchainSelectAccount(client, 6)
+	tx, err = instanceGovernanceToken.Transfer(authGovTokenInitDistrWallet, staker.From, validatorStakingAmountMint)
+	if err != nil {
+		log.Fatal(err)
+	}
+	time.Sleep(6 * time.Second)
+
+	staker = mainchainSelectAccount(client, id)
+	tx, err = instanceGovernanceToken.Approve(staker, validatorStakeManagerAddr, validatorStakingAmountMint)
+	if err != nil {
+		log.Fatal(err)
+	}
+	time.Sleep(12 * time.Second)
+
+	for sid, addrs := range validatorsInSubchains {
+		selected_subchainID, ok := new(big.Int).SetString(sid, 10)
+		if !ok {
+			log.Fatal("Failed to parse bisid")
+		}
+		for _, addr := range addrs {
+			staker = mainchainSelectAccount(client, id)
+			minInitFeeRequired := new(big.Int).Mul(dec18, big.NewInt(100000)) // 100,000 TFuel
+			staker.Value.Set(minInitFeeRequired)
+			validator = common.HexToAddress(addr)
+			tx, err = instanceChainRegistrar.DepositStake(staker, selected_subchainID, validator, validatorStakingAmount)
+			// staker.Value.Set(common.Big0)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("Deposit %v Wei Gov Tokens as stake to subchain %v validator %v\n", validatorStakingAmount, selected_subchainID, validator)
+			fmt.Printf("Stake deposit tx hash (Mainchain): %v\n", tx.Hash().Hex())
+			time.Sleep(1 * time.Second)
+		}
+	}
+
+	time.Sleep(12 * time.Second)
+	for sid, _ := range validatorsInSubchains {
+		selected_subchainID, ok := new(big.Int).SetString(sid, 10)
+		if !ok {
+			log.Fatal("Failed to parse bisid")
+		}
+		mainchainHeight, _ := client.BlockNumber(context.Background())
+		dynasty := scom.CalculateDynasty(big.NewInt(int64(mainchainHeight)))
+		fmt.Printf("Maichain block height: %v, dynasty: %v\n", mainchainHeight, dynasty)
+
+		valset, _ := instanceChainRegistrar.GetValidatorSet(nil, selected_subchainID, dynasty)
+		fmt.Printf("Validator Set for subchain %v during the current dynasty %v: %v\n", selected_subchainID, dynasty, valset)
+
+		nextDynasty := big.NewInt(0).Add(dynasty, big.NewInt(1))
+		valsetNext, _ := instanceChainRegistrar.GetValidatorSet(nil, selected_subchainID, nextDynasty)
+		fmt.Printf("Validator Set for subchain %v during the next dynasty    %v: %v\n", selected_subchainID, nextDynasty, valsetNext)
+	}
+
+}
 func StakeToValidatorFromAccount(id int, validatorAddrStr string, selected_subchainID *big.Int) {
 	validator := common.HexToAddress(validatorAddrStr)
 	client, err := ethclient.Dial("http://localhost:18888/rpc")
