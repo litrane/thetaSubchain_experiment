@@ -357,7 +357,7 @@ func OneAccountRegister(selected_subchainID *big.Int) {
 }
 
 func DSNRegister() {
-	DSNsubchains := [...]*big.Int{big.NewInt(360001), big.NewInt(360777)}
+	DSNsubchains := [...]*big.Int{big.NewInt(360001), big.NewInt(360002), big.NewInt(360003), big.NewInt(360777)}
 	client, err := ethclient.Dial("http://localhost:18888/rpc")
 	if err != nil {
 		log.Fatal(err)
@@ -419,18 +419,17 @@ func DSNRegister() {
 func prepareDSNMappings() map[string][]string {
 	res := make(map[string][]string)
 	//360001
-	vs360001 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+	vs360001 := [...]string{"0x089514B8554FB9f3fd52047254f7cd5F06f45B27", "0x2778640bAC1eC93387EcEC9a40a034CF070768AC", "0xBE9B0fd263C33B934446EA5cA04dcc4cE01006e8", "0xF7A85ab52240D00a362DEF2A43BD968CA775A9E9"}
 	res[big.NewInt(360001).String()] = vs360001[:]
 
+	//360002
+	vs360002 := [...]string{"0x0a74e562F8cF94Aa2B5675120b64f82a2d6F1e18", "0x65aa380A2277A3EC6cB2Ee86Cb8B81e407207BC4", "0x92e6De28a4bDcfd6C9C5Cc28b4FBE7C7e4ac276d", "0xaECbbcBe48d7cC7222494B3Dd7F6a570d7dd593c"}
+	res[big.NewInt(360002).String()] = vs360002[:]
+
+	//360003
+	vs360003 := [...]string{"0x27E6ebAE0Fd53bcD9594Be2CBbEd51327dF4e9C9", "0xa09b0BDD35e4ef0412248a36eA9934830EfbD5E5", "0xf69A85c0f52164FA5E78B30E38C346099F495a07", "0xfba2581921f41B29d2FcC966Da6A886BDc6F5f84"}
+	res[big.NewInt(360003).String()] = vs360003[:]
 	/*
-		//360002
-		vs360002 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
-		res[big.NewInt(360002).String()] = vs360002[:]
-
-		//360003
-		vs360003 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
-		res[big.NewInt(360003).String()] = vs360003[:]
-
 		//360004
 		vs360004 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
 		res[big.NewInt(360004).String()] = vs360004[:]
@@ -446,10 +445,29 @@ func prepareDSNMappings() map[string][]string {
 		//360007
 		vs360007 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
 		res[big.NewInt(360007).String()] = vs360007[:]
-	*/
 
+		//360008
+		vs360007 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+		res[big.NewInt(360007).String()] = vs360007[:]
+
+		//360009
+		vs360007 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+		res[big.NewInt(360007).String()] = vs360007[:]
+
+		//360007
+		vs360007 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+		res[big.NewInt(360007).String()] = vs360007[:]
+
+		//360007
+		vs360007 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+		res[big.NewInt(360007).String()] = vs360007[:]
+
+		//360007
+		vs360007 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+		res[big.NewInt(360007).String()] = vs360007[:]
+	*/
 	//360777
-	vs360777 := [...]string{"9f1233798e905e173560071255140b4a8abd3ec6", "33a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "9f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+	vs360777 := [...]string{"9220995f674b67d05f8ebc3643833aeafd421ec0", "33a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "9f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
 	res[big.NewInt(360777).String()] = vs360777[:]
 	return res
 }
@@ -671,7 +689,7 @@ func DSNStake() {
 	staker := mainchainSelectAccount(client, id)
 	validatorStakingAmount := new(big.Int).Mul(dec18, big.NewInt(100000))
 	validatorStakingAmountMint := new(big.Int)
-	validatorStakingAmountMint.Mul(validatorStakingAmount, big.NewInt(10))
+	validatorStakingAmountMint.Mul(validatorStakingAmount, big.NewInt(100))
 
 	authGovTokenInitDistrWallet := mainchainSelectAccount(client, 6)
 	tx, err = instanceGovernanceToken.Transfer(authGovTokenInitDistrWallet, staker.From, validatorStakingAmountMint)

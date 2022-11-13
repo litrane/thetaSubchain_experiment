@@ -360,11 +360,11 @@ func sanityCheckForSendTxFee(fee types.Coins, numAccountsAffected uint64, blockH
 }
 
 func chargeFee(account *types.Account, fee types.Coins) bool {
-	if !account.Balance.IsGTE(fee) {
-		return false
-	}
+	// if !account.Balance.IsGTE(fee) {
+	// 	return false
+	// }
 
-	account.Balance = account.Balance.Minus(fee)
+	// account.Balance = account.Balance.Minus(fee)
 	return true
 }
 
