@@ -357,7 +357,15 @@ func OneAccountRegister(selected_subchainID *big.Int) {
 }
 
 func DSNRegister() {
-	DSNsubchains := [...]*big.Int{big.NewInt(360001), big.NewInt(360002), big.NewInt(360003), big.NewInt(360777)}
+	var DSNsubchains []*big.Int
+	// DSNsubchains := [...]*big.Int{big.NewInt(360777), big.NewInt(360888)}
+	for i := 1; i <= 16; i++ {
+		chainIDBI, _ := new(big.Int).SetString(fmt.Sprintf("360%03d", i), 10)
+		DSNsubchains = append(DSNsubchains, chainIDBI)
+	}
+	DSNsubchains = append(DSNsubchains, big.NewInt(360777))
+	DSNsubchains = append(DSNsubchains, big.NewInt(360888))
+
 	client, err := ethclient.Dial("http://localhost:18888/rpc")
 	if err != nil {
 		log.Fatal(err)
@@ -378,12 +386,13 @@ func DSNRegister() {
 	amount := new(big.Int).Mul(dec18, big.NewInt(2000000000000))
 
 	auth := mainchainSelectAccount(client, 7) //chainGuarantor
-	_, err = instanceWrappedTheta.Mint(auth, chainGuarantor, amount)
+	tx, err := instanceWrappedTheta.Mint(auth, chainGuarantor, amount)
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println("Mint: ", tx.Hash().Hex())
 	// fmt.Println("Mint wTHETA tx hash (Mainchain):", tx.Hash().Hex())
-	approveAmount := new(big.Int).Mul(dec18, big.NewInt(50000))
+	// approveAmount := new(big.Int).Mul(dec18, big.NewInt(50000))
 	authchainGuarantor := mainchainSelectAccount(client, 7)
 	wThetaBalanceOfGuarantor, err := instanceWrappedTheta.BalanceOf(nil, chainGuarantor)
 	if err != nil {
@@ -391,10 +400,11 @@ func DSNRegister() {
 	}
 	fmt.Printf("wTheta balance of %v: %v\n", chainGuarantor.Hex(), wThetaBalanceOfGuarantor)
 
-	_, err = instanceWrappedTheta.Approve(authchainGuarantor, registrarOnMainchainAddress, approveAmount)
+	tx, err = instanceWrappedTheta.Approve(authchainGuarantor, registrarOnMainchainAddress, amount)
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println("Approve: ", tx.Hash().Hex())
 	// fmt.Println("Approve wTHETA tx hash (Mainchain):", tx.Hash().Hex())
 
 	allChainIDs, _ := instanceChainRegistrar.GetAllSubchainIDs(nil)
@@ -429,46 +439,65 @@ func prepareDSNMappings() map[string][]string {
 	//360003
 	vs360003 := [...]string{"0x27E6ebAE0Fd53bcD9594Be2CBbEd51327dF4e9C9", "0xa09b0BDD35e4ef0412248a36eA9934830EfbD5E5", "0xf69A85c0f52164FA5E78B30E38C346099F495a07", "0xfba2581921f41B29d2FcC966Da6A886BDc6F5f84"}
 	res[big.NewInt(360003).String()] = vs360003[:]
-	/*
-		//360004
-		vs360004 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
-		res[big.NewInt(360004).String()] = vs360004[:]
 
-		//360005
-		vs360005 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
-		res[big.NewInt(360005).String()] = vs360005[:]
+	//360004
+	vs360004 := [...]string{"0x6c25030EB2c794308C03BA5f06070DC102a238C5", "0x8b17Bf7307e86C95A34941C9aF8aC500BEC55CdA", "0x920840b8AfcaABCe27De3234ad3B2cD0032e43C4", "0xE6Bf339BeC5a7605d7b6bC2306F42646a0155FC8"}
+	res[big.NewInt(360004).String()] = vs360004[:]
 
-		//360006
-		vs360006 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
-		res[big.NewInt(360006).String()] = vs360006[:]
+	//360005
+	vs360005 := [...]string{"0x7Ae1ceD9701b4D22f28C263A2F3565354277Ac76", "0xC62F63Ad0aE589B74771869999Aa4288170f19c3", "0xE30d5191f887d7d8964889c596912115E2CE366B", "0xfCb47e565a7E2B7Dfe4F01C52d8544c4032920b9"}
+	res[big.NewInt(360005).String()] = vs360005[:]
 
-		//360007
-		vs360007 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
-		res[big.NewInt(360007).String()] = vs360007[:]
+	//360006
+	vs360006 := [...]string{"0x0EcA08f33B5fd5869857b2b27fAF30C9A92CC2E6", "0x1EdE8fA5a8578888fd354c82F817c9c86ae293e8", "0x2eDb52449B96ebd1aa37036F8C5FFC4D7b811829", "0x71486d1799156eE3f937E8A04588a9F0aa6354ad"}
+	res[big.NewInt(360006).String()] = vs360006[:]
 
-		//360008
-		vs360007 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
-		res[big.NewInt(360007).String()] = vs360007[:]
+	//360007
+	vs360007 := [...]string{"0x29C4B88870dd5857D86595c9E28f90b2365A0B7f", "0x39530b33C7c9AbC77857ed3CC28F0d4C23Bc7ec6", "0x3BD98e246C5e48C9ec63d23873746Df151098104", "0x3F2A9af76d601Bf9bDd11FD3965c6E229bfDd665"}
+	res[big.NewInt(360007).String()] = vs360007[:]
 
-		//360009
-		vs360007 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
-		res[big.NewInt(360007).String()] = vs360007[:]
+	//360008
+	vs360008 := [...]string{"0x04FF6F40a0e91413031559adaf680fF620773fB7", "0x0eCfc6bCC5F1cb8643e669dda85592b938E96300", "0x8791882EB7dC0EbC7F51d01f95F067e54B85a65a", "0xbE89AbE4B208A8B796a232851b317B1646e16B05"}
+	res[big.NewInt(360008).String()] = vs360008[:]
 
-		//360007
-		vs360007 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
-		res[big.NewInt(360007).String()] = vs360007[:]
+	//360009
+	vs360009 := [...]string{"0x200282f2A9ae13A133f3Ab49A5607F67A0592c3d", "0x8A81cf2bD8e942db5E1D5164fa4d8105b72F9491", "0xAf743822E4adC26831EfBD361cA554831bF34D0e", "0xfd3755C3b66D2f8030a1e5e80e1f0ef2091DF52b"}
+	res[big.NewInt(360009).String()] = vs360009[:]
 
-		//360007
-		vs360007 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
-		res[big.NewInt(360007).String()] = vs360007[:]
+	//360010
+	vs360010 := [...]string{"0x022bdfB042611fb882D0710a4F0aE9f5cD9dEE84", "0x1F336cC04183850bb986B9396f852f1fce7EB644", "0x35EBb18F275330f4511036e5cbC4A3A51AF4809f", "0x9fe3827Ae8461f5d4e2905bB8CA574799Fec9161"}
+	res[big.NewInt(360010).String()] = vs360010[:]
 
-		//360007
-		vs360007 := [...]string{"8f1233798e905e173560071255140b4a8abd3ec6", "23a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "1f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
-		res[big.NewInt(360007).String()] = vs360007[:]
-	*/
+	//360011
+	vs360011 := [...]string{"0x67081eD50352eC3524E7e3acd6791511dad5393e", "0x961bBC5806e034D4853a932EF8eaAfFeC530b2A4", "0xBeF9B766a89321D6806AA4D599CE629a6fbBab0C", "0xCB10b02f80a4B7Cf4ff919Ad2494b8190547DAA3"}
+	res[big.NewInt(360011).String()] = vs360011[:]
+
+	//360012
+	vs360012 := [...]string{"0x4ABF9E41aDE70B0515EbdC64432E42ACdee1097F", "0xBC9F39161AeDf65cF66384C80fEf8b577Ae6beD2", "0xBcE748d50E794407F24452A55a225E86C0FBBEc4", "0xf6993FE260ee5004C06251acd80a03E7D6E27099"}
+	res[big.NewInt(360012).String()] = vs360012[:]
+
+	//360013
+	vs360013 := [...]string{"0x0F898D64298c81d34741f29D9Bd59F452a9783ae", "0x7910967FCFAd74bBB3cF873dAC28aD8fC1675C94", "0xF209b73EAa566d9Fd7050BBB518427B511A92865", "0xF6113F645c0D6E52A7bCE5cDF6011264779277Fe"}
+	res[big.NewInt(360013).String()] = vs360013[:]
+
+	//360014
+	vs360014 := [...]string{"0x02570A9338E3E08Af2d1d6F1A0D1993F479e709a", "0x28BE920062e90464b0F7a72A8DbdfbC1911CB9a6", "0x90688BE5b65B28C9B1d59276DE79399689b56B21", "0x9B1d3DF7D408a7FE194bEdB0a108255958fe9C89"}
+	res[big.NewInt(360014).String()] = vs360014[:]
+
+	//360015
+	vs360015 := [...]string{"0x24dB4C8b2566896B2B3e0591867329CA0987c9Ec", "0x39673Af6d6f86FB9826EC7e5a3052EB6D50d0Fcf", "0x43A41Eb0BbA76500497A446aC1dc9A2A5Cb4f89E", "0xb1E6a392E83e1A24A22303E25cF9344BAA58e806"}
+	res[big.NewInt(360015).String()] = vs360015[:]
+
+	//360016
+	vs360016 := [...]string{"0x6b942982537C08e997453ec1f0535461FEEa2fA0", "0x859BBe732710996360276a5A14F21E9940c239e5", "0x9A788c18D2A425De71d5c7c3a98f8F3697050C30", "0xdDDa75a5a880b64b90f4D3c57498f09db955DD12"}
+	res[big.NewInt(360016).String()] = vs360016[:]
+
 	//360777
 	vs360777 := [...]string{"9220995f674b67d05f8ebc3643833aeafd421ec0", "33a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "9f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
 	res[big.NewInt(360777).String()] = vs360777[:]
+	//360888
+	vs360888 := [...]string{"9220995f674b67d05f8ebc3643833aeafd421ec0", "33a027c2ac93b66987b3c8ea2bf5bd9f19e2a004", "9f99c71fd2cc01e748f96b74513f23050f56f564", "bf244894b0c6d9c18139cdc9a86ec501bdff6a26"}
+	res[big.NewInt(360888).String()] = vs360888[:]
 	return res
 }
 

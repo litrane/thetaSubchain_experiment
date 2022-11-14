@@ -81,7 +81,7 @@ func createDirs(dirPath string, addresses []string, keyFiles []string, chainID i
 		}
 
 		// config.yaml
-		createFile(fmt.Sprintf(configYaml, genesisHash, 9*chainID, 9*chainID+1, 9*chainID+2, 9*chainID+3, i), nodeDirPath+"/config.yaml")
+		createFile(fmt.Sprintf(configYaml, genesisHash, 1+4*chainID, 1+4*chainID+1, 1+4*chainID+2, 1+4*chainID+3, i, fmt.Sprintf("360%03d", chainID)), nodeDirPath+"/config.yaml")
 	}
 
 }
@@ -121,7 +121,7 @@ func main() {
 	// createGenesis("/Users/lipengze/go/src/github.com/thetatoken/thetaSubchain_experiment/integration/allsubchains/DSN_360001/node1/")
 	// return
 	basePath := "/Users/lipengze/go/src/github.com/thetatoken/thetaSubchain_experiment/integration/allsubchains/DSN_360"
-	for i := 1; i <= 3; i++ {
+	for i := 1; i <= 16; i++ {
 		fmt.Println(fmt.Sprintf("creating files for subchain 360%03d", i))
 		var addresses []string
 		var files []string
@@ -130,7 +130,9 @@ func main() {
 		// fmt.Println(dirPath)
 
 		err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-			files = append(files, path)
+			if !strings.Contains(path, "DS_Store") {
+				files = append(files, path)
+			}
 			return nil
 		})
 		if err != nil {
@@ -169,16 +171,16 @@ genesis:
   hash: "%v"
 p2p:
   port: 12100
-  seeds: 10.0.0.%v:12100, 10.0.0.%v:12100, 10.0.0.%v:12100, 10.0.0.%v:12100
+  seeds: 10.10.1.%v:12100,10.10.1.%v:12100,10.10.1.%v:12100,10.10.1.%v:12100
   seedPeerOnlyOutbound: true
 rpc:
-  enable: true
+  enabled: true
 log:
   levels: "*:info"
 consensus:
   minBlockInterval: 1
 subchain:
-  mainchainEthRpcURL: "http://10.0.0.%v:18888/rpc"
+  mainchainEthRpcURL: "http://10.10.1.%v:18888/rpc"
   subchainEthRpcURL: "http://127.0.0.1:19888/rpc"
   chainRegistrarOnMainchain: "0x08425D9Df219f93d5763c3e85204cb5B4cE33aAa"
   mainchainTFuelTB: "0x7f1C87Bd3a22159b8a2E5D195B1a3283D10ea895"
@@ -186,6 +188,7 @@ subchain:
   mainchainTNT721TB: "0xEd8d61f42dC1E56aE992D333A4992C3796b22A74"
   mockTNT20: "0x47c5e40890bcE4a473A49D7501808b9633F29782"
   updateInterval: 200
+  chainID: %v
 `
 
 const initValidatorData = `[

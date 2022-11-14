@@ -155,6 +155,7 @@ func setInitialValidatorSet(subchainID string, initValidatorSetFilePath string, 
 	json.Unmarshal(initValidatorSetByteValue, &validators)
 	initialDynasty := big.NewInt(0)
 	validatorSet := score.NewValidatorSet(initialDynasty)
+	validatorSet1 := score.NewValidatorSet(big.NewInt(1))
 	for _, v := range validators {
 		stake, ok := big.NewInt(0).SetString(v.Stake, 10)
 		if !ok {
@@ -162,6 +163,7 @@ func setInitialValidatorSet(subchainID string, initValidatorSetFilePath string, 
 		}
 		validator := score.NewValidator(v.Address, stake)
 		validatorSet.AddValidator(validator)
+		validatorSet1.AddValidator(validator)
 		balance, success := new(big.Int).SetString("100000000000000000000000", 10)
 		if !success {
 			panic("failed to set initial balance")
@@ -169,8 +171,20 @@ func setInitialValidatorSet(subchainID string, initValidatorSetFilePath string, 
 		realAddress := "0x" + v.Address
 		setInitialBalance(sv, common.HexToAddress(realAddress), balance) // need to create accounts with zero balances for the inital validators
 	}
+
+	clientAddresses := [...]string{"0x0ADa245cA9C438A88459bb6567FaaFEC36B2E475", "0x0dD97616336bE3c48d81a01338534A790Cb3E9eA", "0x10217e29fe3B97Ea721ED831e02EBEcb52f5C19b", "0x129c6DA659D30eBC3d41e36c2940bF5d03Bf09e1", "0x1511dfd104397Aea2925209eAd19e867F1a2cF29", "0x1A956Fbbe184316d6FE3fA410829C261203329a7", "0x3C828747019eBfd73a8755ea5C6Fb5eaF5Fb457D", "0x50e9108D25e9aA06Dd7dF72Aa6097db617243cbC", "0x84d4ce6159B54070FC61f70213a1E5DBA4B2Cac3", "0x89434590ce5fa3eFAA2F31AcB17fc5435598D8bF", "0x9F40109AB1de121B0FF769d17a96A77aB60dB907", "0xb3d370261c83555ee8ae08a6bd5d9bC90B86610D", "0xd664B6981545Ac6CDB1c0A6E47474991FbC28693", "0xe7B7cDD925Ba73AEf2346f25Cb444481370ceE44", "0xe9b506Dd4326d788451494304645f82f94e818Ba", "0xf977047B9435D6454Da7bDcb76C100cf7e1BB5eF"}
+
+	for _, v := range clientAddresses {
+		balance, success := new(big.Int).SetString("100000000000000000000000", 10)
+		if !success {
+			panic("failed to set initial balance")
+		}
+		setInitialBalance(sv, common.HexToAddress(v), balance) // need to create accounts with zero balances for the inital validators
+	}
+
 	subchainIDInt := scom.MapChainID(subchainID)
 	sv.UpdateValidatorSet(subchainIDInt, validatorSet)
+	sv.UpdateValidatorSet(subchainIDInt, validatorSet1)
 
 	hl := &types.HeightList{}
 	hl.Append(genesisHeight)
@@ -399,6 +413,46 @@ func mintMockERC20(subchainID string, initValidatorSetFilePath string, sv *slst.
 		}
 		// fmt.Println(evmRet.String())
 	}
+
+	clientAddresses := [...]string{"0ADa245cA9C438A88459bb6567FaaFEC36B2E475", "0dD97616336bE3c48d81a01338534A790Cb3E9eA", "10217e29fe3B97Ea721ED831e02EBEcb52f5C19b", "129c6DA659D30eBC3d41e36c2940bF5d03Bf09e1", "1511dfd104397Aea2925209eAd19e867F1a2cF29", "1A956Fbbe184316d6FE3fA410829C261203329a7", "3C828747019eBfd73a8755ea5C6Fb5eaF5Fb457D", "50e9108D25e9aA06Dd7dF72Aa6097db617243cbC", "84d4ce6159B54070FC61f70213a1E5DBA4B2Cac3", "89434590ce5fa3eFAA2F31AcB17fc5435598D8bF", "9F40109AB1de121B0FF769d17a96A77aB60dB907", "b3d370261c83555ee8ae08a6bd5d9bC90B86610D", "d664B6981545Ac6CDB1c0A6E47474991FbC28693", "e7B7cDD925Ba73AEf2346f25Cb444481370ceE44", "e9b506Dd4326d788451494304645f82f94e818Ba", "f977047B9435D6454Da7bDcb76C100cf7e1BB5eF"}
+
+	for _, v := range clientAddresses {
+		sequence += 1
+		calldata, err := hex.DecodeString("40c10f19000000000000000000000000" + strings.ToLower(v) + "000000000000000000000000000000000000000000084595161401484a000000")
+		if err != nil {
+			return err
+		}
+		mintSCTx := types.SmartContractTx{
+			From:     types.NewTxInput(deployer, types.NewCoins(0, 0), sequence),
+			To:       types.TxOutput{Address: common.HexToAddress(mockTNT20ContractAddr)},
+			GasLimit: dummyGasLimit,
+			GasPrice: dummyGasPrice,
+			Data:     common.Bytes(calldata),
+		}
+		parentBlockInfo := svm.NewBlockInfo(0, big.NewInt(0), subchainID)
+		_, _, _, evmErr := svm.Execute(parentBlockInfo, &mintSCTx, sv)
+		if evmErr != nil {
+			return evmErr
+		}
+		// fmt.Println(evmRet.String())
+		// the sequnce number is 0, as the caller is the validator
+		approveCalldata, err := hex.DecodeString("095ea7b300000000000000000000000047e9fbef8c83a1714f1951f142132e6e90f5fa5d000000000000000000000000000000000000000000084595161401484a000000")
+		if err != nil {
+			return err
+		}
+		allowanceSCTx := types.SmartContractTx{
+			From:     types.NewTxInput(common.HexToAddress("0x"+v), types.NewCoins(0, 0), 0),
+			To:       types.TxOutput{Address: common.HexToAddress(mockTNT20ContractAddr)},
+			GasLimit: dummyGasLimit,
+			GasPrice: dummyGasPrice,
+			Data:     common.Bytes(approveCalldata),
+		}
+		_, _, _, evmErr = svm.Execute(parentBlockInfo, &allowanceSCTx, sv)
+		if evmErr != nil {
+			return evmErr
+		}
+	}
+
 	return nil
 }
 

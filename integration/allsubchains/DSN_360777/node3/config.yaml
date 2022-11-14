@@ -1,7 +1,7 @@
 # Theta configuration
 # chainID: private_multinode_subchain
 genesis:
-  hash: "0x86a6980df2374a4328988299bcc55ab6b72ce017a75e7cd1639fb426130e9929"
+  hash: "0xa4f7a76cd9d58dabdbd7dd1064090d2f48fdffb718c8fbdbfa8e91930c885dea"
 p2p:
   port: 11300
   seeds: 127.0.0.1:11100,127.0.0.1:12100,127.0.0.1:11200
