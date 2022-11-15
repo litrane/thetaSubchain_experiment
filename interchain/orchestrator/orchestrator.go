@@ -142,13 +142,13 @@ func NewOrchestrator(db database.Database, updateInterval int, interChainEventCa
 
 		wg: &sync.WaitGroup{},
 	}
-	if oc.subchainID.Cmp(big.NewInt(360888)) != 0 {
-		cl, err := ec.Dial("http://localhost:19988/rpc")
-		if err != nil {
-			log.Panic()
-		}
-		oc.interSubchainChannels["360888"] = cl
-	}
+	// if oc.subchainID.Cmp(big.NewInt(360888)) != 0 {
+	// 	cl, err := ec.Dial("http://localhost:19988/rpc")
+	// 	if err != nil {
+	// 		log.Panic()
+	// 	}
+	// 	oc.interSubchainChannels["360888"] = cl
+	// }
 	return oc
 }
 
