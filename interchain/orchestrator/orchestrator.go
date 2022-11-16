@@ -227,30 +227,30 @@ func (oc *Orchestrator) mainloop(ctx context.Context) {
 			return
 		case <-oc.eventProcessingTicker.C:
 			// Handle token lock events
-			oc.processNextTokenLockEvent(oc.mainchainID, oc.subchainID) // send token from the mainchain to the subchain
+			// oc.processNextTokenLockEvent(oc.mainchainID, oc.subchainID) // send token from the mainchain to the subchain
 			oc.processNextTokenLockEvent(oc.subchainID, oc.mainchainID) // send token from the subchain to the mainchain
 
 			// Handle voucher burn events
-			oc.processNextVoucherBurnEvent(oc.mainchainID, oc.subchainID) // burn voucher to send token from the mainchain back to the subchain
-			oc.processNextVoucherBurnEvent(oc.subchainID, oc.mainchainID) // burn voucher to send token from the subchain back to the mainchain
+			// oc.processNextVoucherBurnEvent(oc.mainchainID, oc.subchainID) // burn voucher to send token from the mainchain back to the subchain
+			// oc.processNextVoucherBurnEvent(oc.subchainID, oc.mainchainID) // burn voucher to send token from the subchain back to the mainchain
 
 			// Handle subchain channel events
-			oc.processNextSubchainRegisterEvent()
-			for chainIDString := range oc.interSubchainChannels {
-				targetChainID, success := big.NewInt(0).SetString(chainIDString, 10)
-				if !success {
-					logger.Fatalf("failed to convert the target chain ID")
-				}
-				oc.processNextTokenLockEvent(oc.subchainID, targetChainID)
-			}
+			// oc.processNextSubchainRegisterEvent()
+			// for chainIDString := range oc.interSubchainChannels {
+			// 	targetChainID, success := big.NewInt(0).SetString(chainIDString, 10)
+			// 	if !success {
+			// 		logger.Fatalf("failed to convert the target chain ID")
+			// 	}
+			// 	oc.processNextTokenLockEvent(oc.subchainID, targetChainID)
+			// }
 		}
 	}
 }
 
 func (oc *Orchestrator) processNextTokenLockEvent(sourceChainID *big.Int, targetChainID *big.Int) {
-	oc.processNextTFuelTokenLockEvent(sourceChainID, targetChainID)
+	// oc.processNextTFuelTokenLockEvent(sourceChainID, targetChainID)
 	oc.processNextTNT20TokenLockEvent(sourceChainID, targetChainID)
-	oc.processNextTNT721TokenLockEvent(sourceChainID, targetChainID)
+	// oc.processNextTNT721TokenLockEvent(sourceChainID, targetChainID)
 }
 
 func (oc *Orchestrator) processNextTFuelTokenLockEvent(sourceChainID *big.Int, targetChainID *big.Int) {

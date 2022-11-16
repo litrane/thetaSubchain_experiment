@@ -294,7 +294,7 @@ func (mw *MetachainWitness) update() {
 		mw.updateValidatorSetCache(dynasty)
 		mw.witnessedDynasty = dynasty
 	}
-	mw.collectInterChainMessageEventsOnMainchain()
+	// mw.collectInterChainMessageEventsOnMainchain()
 
 	// Subchain
 	mw.collectInterChainMessageEventsOnSubchain()
