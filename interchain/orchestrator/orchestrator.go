@@ -3,9 +3,7 @@ package orchestrator
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/big"
-	"strings"
 	"sync"
 	"time"
 
@@ -145,21 +143,16 @@ func NewOrchestrator(db database.Database, updateInterval int, interChainEventCa
 
 		wg: &sync.WaitGroup{},
 	}
+
 	if oc.subchainID.Cmp(big.NewInt(360888)) != 0 {
-		localMainchainId := int(mainchainEthRpcURL[15]) - 48
-		targetSubchainID := localMainchainId + 8
-		clientIP := strings.Replace(mainchainEthRpcURL, "1."+fmt.Sprintf("%v", localMainchainId), "1."+fmt.Sprintf("%v", targetSubchainID), 1)
-		clientIP = strings.Replace(clientIP, "18888", "19888", 1) //delete this
-		cl, err := ec.Dial(clientIP)
+		cl, err := ec.Dial(viper.GetString(scom.CfgAnotherSubchainEthRpcURL))
 		if err != nil {
-			log.Panic()
+		 	log.Panic()
 		}
+		logger.Info("360888 ip is ", viper.GetString(scom.CfgAnotherSubchainEthRpcURL))
 		oc.interSubchainChannels["360888"] = cl
-		oc.another_subchainTNT20TokenBank, err = scta.NewTNT20TokenBank(oc.subchainTNT20TokenBankAddr, cl)
-		if err != nil {
-			log.Panic("init token bank for 360888 error!")
-		}
 	}
+	
 	return oc
 }
 
@@ -208,6 +201,14 @@ func (oc *Orchestrator) SetLedgerAndSubchainTokenBanks(ledger score.Ledger) {
 	if err != nil {
 		logger.Fatalf("failed to set the SubchainTNT20TokenBank contract: %v\n", err)
 	}
+	if oc.subchainID.Cmp(big.NewInt(360888)) != 0 {
+		oc.another_subchainTNT20TokenBank, err = scta.NewTNT20TokenBank(oc.subchainTNT20TokenBankAddr, oc.interSubchainChannels["360888"])
+		logger.Info("TNT20 bank address", oc.subchainTNT20TokenBankAddr)
+		if err != nil {
+			log.Panic("init token bank for 360888 error!")
+		}
+	}
+
 
 	subchainTNT721TokenBankAddr := ledger.GetTokenBankContractAddress(score.CrossChainTokenTypeTNT721)
 	if subchainTNT721TokenBankAddr == nil {
@@ -347,7 +348,6 @@ func (oc *Orchestrator) processNextSubchainRegisterEvent() {
 
 func (oc *Orchestrator) processNextEvent(sourceChainID *big.Int, targetChainID *big.Int, sourceChainEventType score.InterChainMessageEventType, maxProcessedNonce *big.Int) {
 	oc.cleanUpInterChainEventCache(sourceChainID, targetChainID, sourceChainEventType, maxProcessedNonce)
-
 	nextNonce := big.NewInt(0).Add(maxProcessedNonce, big.NewInt(1))
 	sourceEvent, err := oc.interChainEventCache.Get(sourceChainID, targetChainID, sourceChainEventType, nextNonce)
 	if err == ts.ErrKeyNotFound {
@@ -523,11 +523,15 @@ func (oc *Orchestrator) mintTNT20Vouchers(txOpts *bind.TransactOpts, targetChain
 		return ErrDynastyIsNil
 	}
 	if targetChainID.Cmp(big.NewInt(oc.mainchainID.Int64())) != 0 && targetChainID.Cmp(big.NewInt(oc.subchainID.Int64())) != 0 {
-		sidechainTNT20TokenBank, err := scta.NewTNT20TokenBank(oc.subchainTNT20TokenBankAddr, oc.interSubchainChannels[targetChainID.String()])
-		if err != nil {
-			logger.Fatalf("failed to set the SubchainTNT20TokenBank contract: %v\n", err)
-		}
-		_, err = sidechainTNT20TokenBank.MintVouchers(txOpts, se.Denom, se.Name, se.Symbol, se.Decimals, se.TargetChainVoucherReceiver, se.LockedAmount, dynasty, se.TokenLockNonce)
+		// sidechainTNT20TokenBank, err := scta.NewTNT20TokenBank(oc.subchainTNT20TokenBankAddr, oc.interSubchainChannels[targetChainID.String()])
+		// if err != nil {
+		// 	logger.Fatalf("failed to set the SubchainTNT20TokenBank contract: %v\n", err)
+		// }
+		// _, err = sidechainTNT20TokenBank.MintVouchers(txOpts, se.Denom, se.Name, se.Symbol, se.Decimals, se.TargetChainVoucherReceiver, se.LockedAmount, dynasty, se.TokenLockNonce)
+		// if err != nil {
+		// 	return err
+		// }
+		_, err = oc.another_subchainTNT20TokenBank.MintVouchers(txOpts, se.Denom, se.Name, se.Symbol, se.Decimals, se.TargetChainVoucherReceiver, se.LockedAmount, dynasty, se.TokenLockNonce)
 		if err != nil {
 			return err
 		}

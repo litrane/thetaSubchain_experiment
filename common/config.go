@@ -151,6 +151,8 @@ const (
 	CfgMainchainEthRpcURL = "subchain.mainchainEthRpcURL"
 	// CfgSubchainEthRpcURL defines the URL of the subchain ETH RPC adaptor
 	CfgSubchainEthRpcURL = "subchain.subchainEthRpcURL"
+	// CfgSubchainEthRpcURL defines the URL of the another subchain ETH RPC adaptor
+	CfgAnotherSubchainEthRpcURL = "subchain.anothersubchainEthRpcURL"
 	// CfgSubchainEthRpcURL defines the URL of the subchain ETH RPC adaptor
 	CfgSubchainMainchainBlockIntervalInSeconds = "subchain.mainchainBlockIntervalInSeconds"
 
@@ -228,6 +230,7 @@ func init() {
 	viper.SetDefault(CfgSubchainMainchainBlockIntervalInSeconds, 6)
 	viper.SetDefault(CfgMainchainEthRpcURL, "http://127.0.0.1:18888")
 	viper.SetDefault(CfgSubchainEthRpcURL, "http://127.0.0.1:19888")
+	viper.SetDefault(CfgAnotherSubchainEthRpcURL, "http://10.10.1.9:19988/rpc")
 
 	viper.SetDefault(CfgSubchainID, 360777)
 }
