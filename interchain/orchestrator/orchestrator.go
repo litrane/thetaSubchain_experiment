@@ -3,7 +3,9 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -53,17 +55,18 @@ type Orchestrator struct {
 	mainchainTNT721TokenBank     *scta.TNT721TokenBank
 
 	// The subchain
-	subchainID                    *big.Int
-	subchainEthRpcURL             string
-	subchainEthRpcClient          *ec.Client
-	subchainTFuelTokenBankAddr    common.Address
-	subchainTFuelTokenBankAddress *scta.TFuelTokenBank
-	subchainTNT20TokenBankAddr    common.Address
-	subchainTNT20TokenBank        *scta.TNT20TokenBank
-	subchainTNT721TokenBankAddr   common.Address
-	subchainTNT721TokenBank       *scta.TNT721TokenBank
-	subchainRegisterAddr          common.Address
-	subchainRegister              *scta.ChainRegistrarOnSubchain
+	subchainID                     *big.Int
+	subchainEthRpcURL              string
+	subchainEthRpcClient           *ec.Client
+	subchainTFuelTokenBankAddr     common.Address
+	subchainTFuelTokenBankAddress  *scta.TFuelTokenBank
+	subchainTNT20TokenBankAddr     common.Address
+	subchainTNT20TokenBank         *scta.TNT20TokenBank
+	another_subchainTNT20TokenBank *scta.TNT20TokenBank
+	subchainTNT721TokenBankAddr    common.Address
+	subchainTNT721TokenBank        *scta.TNT721TokenBank
+	subchainRegisterAddr           common.Address
+	subchainRegister               *scta.ChainRegistrarOnSubchain
 	// Inter-chain messaging
 	interChainEventCache *siu.InterChainEventCache
 
@@ -142,13 +145,21 @@ func NewOrchestrator(db database.Database, updateInterval int, interChainEventCa
 
 		wg: &sync.WaitGroup{},
 	}
-	// if oc.subchainID.Cmp(big.NewInt(360888)) != 0 {
-	// 	cl, err := ec.Dial("http://localhost:19988/rpc")
-	// 	if err != nil {
-	// 		log.Panic()
-	// 	}
-	// 	oc.interSubchainChannels["360888"] = cl
-	// }
+	if oc.subchainID.Cmp(big.NewInt(360888)) != 0 {
+		localMainchainId := int(mainchainEthRpcURL[15]) - 48
+		targetSubchainID := localMainchainId + 8
+		clientIP := strings.Replace(mainchainEthRpcURL, "1."+fmt.Sprintf("%v", localMainchainId), "1."+fmt.Sprintf("%v", targetSubchainID), 1)
+		clientIP = strings.Replace(clientIP, "18888", "19888", 1) //delete this
+		cl, err := ec.Dial(clientIP)
+		if err != nil {
+			log.Panic()
+		}
+		oc.interSubchainChannels["360888"] = cl
+		oc.another_subchainTNT20TokenBank, err = scta.NewTNT20TokenBank(oc.subchainTNT20TokenBankAddr, cl)
+		if err != nil {
+			log.Panic("init token bank for 360888 error!")
+		}
+	}
 	return oc
 }
 
@@ -228,7 +239,7 @@ func (oc *Orchestrator) mainloop(ctx context.Context) {
 		case <-oc.eventProcessingTicker.C:
 			// Handle token lock events
 			// oc.processNextTokenLockEvent(oc.mainchainID, oc.subchainID) // send token from the mainchain to the subchain
-			oc.processNextTokenLockEvent(oc.subchainID, oc.mainchainID) // send token from the subchain to the mainchain
+			// oc.processNextTokenLockEvent(oc.subchainID, oc.mainchainID) // send token from the subchain to the mainchain
 
 			// Handle voucher burn events
 			// oc.processNextVoucherBurnEvent(oc.mainchainID, oc.subchainID) // burn voucher to send token from the mainchain back to the subchain
@@ -236,13 +247,13 @@ func (oc *Orchestrator) mainloop(ctx context.Context) {
 
 			// Handle subchain channel events
 			// oc.processNextSubchainRegisterEvent()
-			// for chainIDString := range oc.interSubchainChannels {
-			// 	targetChainID, success := big.NewInt(0).SetString(chainIDString, 10)
-			// 	if !success {
-			// 		logger.Fatalf("failed to convert the target chain ID")
-			// 	}
-			// 	oc.processNextTokenLockEvent(oc.subchainID, targetChainID)
-			// }
+			for chainIDString := range oc.interSubchainChannels {
+				targetChainID, success := big.NewInt(0).SetString(chainIDString, 10)
+				if !success {
+					logger.Fatalf("failed to convert the target chain ID")
+				}
+				oc.processNextTokenLockEvent(oc.subchainID, targetChainID)
+			}
 		}
 	}
 }
@@ -669,11 +680,12 @@ func (oc *Orchestrator) getTNT20TokenBank(chainID *big.Int) *scta.TNT20TokenBank
 	} else if chainID.Cmp(oc.subchainID) == 0 {
 		return oc.subchainTNT20TokenBank
 	} else {
-		targetSubchainTNT20TokenBank, err := scta.NewTNT20TokenBank(oc.subchainTNT20TokenBankAddr, oc.interSubchainChannels[chainID.String()])
-		if err != nil {
-			logger.Fatalf("failed to set the SubchainTNT20TokenBank contract: %v\n", err)
-		}
-		return targetSubchainTNT20TokenBank
+		return oc.another_subchainTNT20TokenBank
+		// targetSubchainTNT20TokenBank, err := scta.NewTNT20TokenBank(oc.subchainTNT20TokenBankAddr, oc.interSubchainChannels[chainID.String()])
+		// if err != nil {
+		// 	logger.Fatalf("failed to set the SubchainTNT20TokenBank contract: %v\n", err)
+		// }
+		// return targetSubchainTNT20TokenBank
 	}
 }
 

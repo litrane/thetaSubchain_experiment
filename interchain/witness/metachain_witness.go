@@ -156,9 +156,9 @@ func NewMetachainWitness(db database.Database, updateInterval int, interChainEve
 
 		wg: &sync.WaitGroup{},
 	}
-	// if mw.subchainID.Cmp(big.NewInt(360777)) != 0 {
-	// 	mw.interSubchainChannelWatchList = append(mw.interSubchainChannelWatchList, big.NewInt(360777))
-	// }
+	if mw.subchainID.Cmp(big.NewInt(360777)) != 0 {
+		mw.interSubchainChannelWatchList = append(mw.interSubchainChannelWatchList, big.NewInt(360777))
+	}
 	return mw
 }
 
@@ -351,12 +351,12 @@ func (mw *MetachainWitness) getBlockScanStartingHeight(queriedChainID *big.Int) 
 	updateHeight := big.NewInt(0).Set(common.BigMaxUint64)
 
 	eventTypes := []score.InterChainMessageEventType{
-		score.IMCEventTypeCrossChainTokenLockTFuel,
+		// score.IMCEventTypeCrossChainTokenLockTFuel,
 		score.IMCEventTypeCrossChainTokenLockTNT20,
-		score.IMCEventTypeCrossChainTokenLockTNT721,
-		score.IMCEventTypeCrossChainVoucherBurnTFuel,
-		score.IMCEventTypeCrossChainVoucherBurnTNT20,
-		score.IMCEventTypeCrossChainVoucherBurnTNT721,
+		// score.IMCEventTypeCrossChainTokenLockTNT721,
+		// score.IMCEventTypeCrossChainVoucherBurnTFuel,
+		// score.IMCEventTypeCrossChainVoucherBurnTNT20,
+		// score.IMCEventTypeCrossChainVoucherBurnTNT721,
 	}
 
 	for _, eventType := range eventTypes {
